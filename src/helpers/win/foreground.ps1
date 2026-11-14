@@ -28,6 +28,17 @@
 # treats an error payload as "no reading" (fail-open for a transient
 # failure, fail-closed after 10 s with no confirmed reading from either
 # check - see pollForeground in main.js).
+# v1.0.3: UIA rect coordinates are doubles and can be non-finite
+# (Rect.Empty is +/-Infinity for desktop/root elements) or far outside
+# Int32 range - a bare [int] cast throws "Value was either too large or
+# too small for an Int32" (v1.0.2 log: both checks died on the desktop
+# with exactly that error). Convert-RectCoord clamps safely to a 64-bit
+# value instead (non-finite -> 0).
+function Convert-RectCoord([double]$v) {
+  if ([double]::IsNaN($v) -or [double]::IsInfinity($v)) { return [long]0 }
+  $c = [math]::Max(-2000000000.0, [math]::Min(2000000000.0, $v))
+  return [long][math]::Round($c)
+}
 try {
   Add-Type -AssemblyName UIAutomationClient -ErrorAction Stop
   Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
@@ -59,6 +70,6 @@ try {
   [pscustomobject]@{
     hwnd = [int64]$hwnd; title = [string]$title; class = [string]$cls; process = $proc
     isFullscreen = $isFullscreen; isMaximized = $isMaximized
-    rect = [pscustomobject]@{ left = [int]$r.Left; top = [int]$r.Top; right = [int]($r.Left + $r.Width); bottom = [int]($r.Top + $r.Height) }
+    rect = [pscustomobject]@{ left = (Convert-RectCoord $r.Left); top = (Convert-RectCoord $r.Top); right = (Convert-RectCoord ($r.Left + $r.Width)); bottom = (Convert-RectCoord ($r.Top + $r.Height)) }
   } | ConvertTo-Json -Compress -Depth 3
 } catch { '{"error":"foreground check failed: ' + ($_.Exception.Message -replace '"', "'") + '"}' }

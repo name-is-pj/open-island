@@ -6,9 +6,28 @@
 # the dock toggle and the Deck endpoint could pause the wrong player).
 #   seek <sessionId> <seconds> -> TryChangePlaybackPositionAsync (set position).
 param([string]$Cmd, [string]$SessionId, [double]$Value = 0)
-Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction SilentlyContinue | Out-Null
+# v1.0.3: the WinRT SMTC type must actually RESOLVE before it is used -
+# see media.ps1 for the full note. The old SilentlyContinue load hid the
+# failure and the literal type reference then died with "Unable to find
+# type" on every call, so play/pause/next/previous never ran at all.
+$smTCType = $null
+$winrtLoadError = ''
 try {
-  $mgr = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync().GetAwaiter().GetResult()
+  Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction Stop | Out-Null
+  $smTCType = [Type]::GetType('Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime')
+  if ($null -eq $smTCType) {
+    $winmd = Join-Path $env:SystemRoot 'System32\WinMetadata\Windows.Media.Control.winmd'
+    if (Test-Path $winmd) { Add-Type -Path $winmd -ErrorAction Stop | Out-Null }
+    $smTCType = [Type]::GetType('Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime')
+  }
+  if ($null -eq $smTCType) { throw 'WinRT type Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager could not be resolved (tried System.Runtime.WindowsRuntime + Windows.Media.Control.winmd)' }
+} catch {
+  $winrtLoadError = $_.Exception.Message
+  $smTCType = $null
+}
+try {
+  if ($null -eq $smTCType) { Write-Error "WinRT SMTC type unavailable: $winrtLoadError"; exit 1 }
+  $mgr = $smTCType::RequestAsync().GetAwaiter().GetResult()
   if (-not $SessionId) { Write-Error 'media-control needs a session id (per-session control only; no GetCurrentSession fallback)'; exit 1 }
   $s = $null
   foreach ($cand in $mgr.GetSessions()) {

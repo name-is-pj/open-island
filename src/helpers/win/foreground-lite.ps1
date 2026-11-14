@@ -12,6 +12,17 @@
 #   it as a desktop-like signal, NOT a failure.
 # On any failure it prints {"error": "<real message>"} - never a generic
 # string, so openisland.log can actually diagnose it.
+# v1.0.3: UIA rect coordinates are doubles and can be non-finite
+# (Rect.Empty is +/-Infinity for desktop/root elements) or far outside
+# Int32 range - a bare [int] cast throws "Value was either too large or
+# too small for an Int32" (v1.0.2 log: both checks died on the desktop
+# with exactly that error). Convert-RectCoord clamps safely to a 64-bit
+# value instead (non-finite -> 0).
+function Convert-RectCoord([double]$v) {
+  if ([double]::IsNaN($v) -or [double]::IsInfinity($v)) { return [long]0 }
+  $c = [math]::Max(-2000000000.0, [math]::Min(2000000000.0, $v))
+  return [long][math]::Round($c)
+}
 try {
   Add-Type -AssemblyName UIAutomationClient -ErrorAction Stop
   Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
@@ -43,6 +54,6 @@ try {
   [pscustomobject]@{
     hwnd = [int64]$hwnd; title = [string]$title; class = [string]$cls; process = $proc
     isFullscreen = $isFullscreen; isMaximized = $isMaximized; via = 'uia'
-    rect = [pscustomobject]@{ left = [int]$r.Left; top = [int]$r.Top; right = [int]($r.Left + $r.Width); bottom = [int]($r.Top + $r.Height) }
+    rect = [pscustomobject]@{ left = (Convert-RectCoord $r.Left); top = (Convert-RectCoord $r.Top); right = (Convert-RectCoord ($r.Left + $r.Width)); bottom = (Convert-RectCoord ($r.Top + $r.Height)) }
   } | ConvertTo-Json -Compress -Depth 3
 } catch { '{"error":"foreground-lite check failed: ' + ($_.Exception.Message -replace '"', "'") + '"}' }

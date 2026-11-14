@@ -27,6 +27,21 @@ try {
   exit 1
 }
 
+# UIA rect coordinates are doubles and can be non-finite (Rect.Empty is
+# +/-Infinity for desktop/root elements) or far outside Int32 range. A
+# bare [int] cast throws "Value was either too large or too small for an
+# Int32" on those (v1.0.2 log openisland-5.log: both foreground checks
+# died on the desktop with exactly that error, twice fail-closing the
+# island). The only [int] conversions in the foreground path are these
+# rect casts, and both functions fail identically at desktop-foreground
+# times. Convert safely: non-finite -> 0, else clamp to a sane screen
+# range and round to a 64-bit value (JSON numbers carry it fine).
+function Convert-RectCoord([double]$v) {
+  if ([double]::IsNaN($v) -or [double]::IsInfinity($v)) { return [long]0 }
+  $c = [math]::Max(-2000000000.0, [math]::Min(2000000000.0, $v))
+  return [long][math]::Round($c)
+}
+
 function Get-ForegroundMain {
   try {
     $el = [System.Windows.Automation.AutomationElement]::FocusedElement
@@ -56,7 +71,7 @@ function Get-ForegroundMain {
     $json = [pscustomobject]@{
       hwnd = [int64]$hwnd; title = [string]$title; class = [string]$cls; process = $proc
       isFullscreen = $isFullscreen; isMaximized = $isMaximized
-      rect = [pscustomobject]@{ left = [int]$r.Left; top = [int]$r.Top; right = [int]($r.Left + $r.Width); bottom = [int]($r.Top + $r.Height) }
+      rect = [pscustomobject]@{ left = (Convert-RectCoord $r.Left); top = (Convert-RectCoord $r.Top); right = (Convert-RectCoord ($r.Left + $r.Width)); bottom = (Convert-RectCoord ($r.Top + $r.Height)) }
     } | ConvertTo-Json -Compress -Depth 3
     return $json
   } catch { return '{"error":"foreground check failed: ' + ($_.Exception.Message -replace '"', "'") + '"}' }
@@ -92,7 +107,7 @@ function Get-ForegroundLite {
     $json = [pscustomobject]@{
       hwnd = [int64]$hwnd; title = [string]$title; class = [string]$cls; process = $proc
       isFullscreen = $isFullscreen; isMaximized = $isMaximized; via = 'uia'
-      rect = [pscustomobject]@{ left = [int]$r.Left; top = [int]$r.Top; right = [int]($r.Left + $r.Width); bottom = [int]($r.Top + $r.Height) }
+      rect = [pscustomobject]@{ left = (Convert-RectCoord $r.Left); top = (Convert-RectCoord $r.Top); right = (Convert-RectCoord ($r.Left + $r.Width)); bottom = (Convert-RectCoord ($r.Top + $r.Height)) }
     } | ConvertTo-Json -Compress -Depth 3
     return $json
   } catch { return '{"error":"foreground-lite check failed: ' + ($_.Exception.Message -replace '"', "'") + '"}' }

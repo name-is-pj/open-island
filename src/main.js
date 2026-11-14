@@ -395,6 +395,17 @@ function maybeFailClosed(mainErr, liteErr) {
     fgFailClosedLogged = true;
     logLine(`foreground: NO confirmed reading for ${Math.round(elapsedMs / 1000)}s (main: ${(mainErr || 'empty').slice(0, 120)}; lightweight: ${(liteErr || 'empty').slice(0, 120)}) — hiding island (fail-closed); it shows again when a reading arrives`);
   }
+  // v1.0.3: hide NOW, on the transition — do not wait for the next poll
+  // tail. maybeFailClosed fires from checkForegroundFreshness (500 ms
+  // interval), but the next poll tail can be up to ~4 s away (2 s main
+  // timeout + 2 s lite timeout serialised), so the island stayed visible
+  // for seconds after the "hiding island" line was logged. Applying the
+  // rules here makes the hide land within 500 ms of the 10 s mark.
+  // isDesktopForeground() returns false while the flag is set, so this
+  // hides the island; a confirmed reading later clears the flag and the
+  // normal rules show it again. Both callees guard for missing windows.
+  applyForegroundRules();
+  applyDockStepAside();
 }
 async function pollForeground() {
   // Dev/test hook only: OI_TEST_FOREGROUND=<path to a JSON file> feeds a
@@ -531,6 +542,18 @@ function isScopeExempt(d) {
   if (proc === 'openisland') return true; // our own window (island, Settings, dock, strip, widgets…)
   if (SCOPE_OVERLAY_PROCESSES.has(proc)) return true;
   if (SCOPE_OVERLAY_CLASSES.has(d.class || '')) return true;
+  // v1.0.3 (Bug 1): THE DESKTOP ITSELF. Progman/WorkerW (process explorer)
+  // is the desktop shell, and csrss class #32769 is the desktop window.
+  // Their bounding rect covers the whole screen, so the UIA check reports
+  // isFullscreen=true for them — and because they were not exempt, the
+  // fullscreen rule read the desktop as a "fullscreen app in front" and
+  // put the island into click-through mode ON THE DESKTOP (v1.0.2 log:
+  // "fullscreen: fullscreen app in front (explorer/csrss)" flickering on
+  // and off). The desktop must never hide the island and never count as
+  // a fullscreen app.
+  if (d.class === 'Progman' || d.class === 'WorkerW') return true;
+  if (proc === 'explorer' && (d.title === '' || d.title === 'Program Manager')) return true;
+  if (proc === 'csrss' && d.class === '#32769') return true;
   return false;
 }
 function startForegroundWatcher() {
@@ -551,11 +574,19 @@ function startForegroundWatcher() {
 // the poll, so it fires within ~5 s of the last good reading.
 function checkForegroundFreshness() {
   if (!fgHasReading) return;
-  if (Date.now() - fgLastReadingAt <= 5000) return;
-  // v1.0.1: the fail-closed timer is evaluated here too, so it fires even
-  // when a poll is stuck behind a hung helper and never completes. The
-  // stored last error texts go into the log line.
+  // v1.0.3: evaluate fail-closed FIRST, before the 5 s freshness gate
+  // below. fgLastReadingAt is refreshed by every poll completion —
+  // including a failed/timeout one — so during a hang the gate never
+  // opens (polls "complete" via timeout every ~2 s) and maybeFailClosed
+  // was only reached from the poll's failure path, up to ~4 s late (2 s
+  // main timeout + 2 s lite timeout serialised: the v103 rig saw it fire
+  // at 13 s, right as the suite checked at 13 s). The fail-closed rule is
+  // time-based (10 s with no CONFIRMED reading) and maybeFailClosed is
+  // self-gated (returns early below 10 s or once failed), so evaluating
+  // it every 500 ms here makes it fire within 500 ms of the 10 s mark.
+  // A reading landing later still clears the failure immediately.
   maybeFailClosed(fgLastMainErr, fgLastLiteErr);
+  if (Date.now() - fgLastReadingAt <= 5000) return;
   // v1.0.0 (item C): a stale reading while ALREADY fail-closed stays hidden
   // — fail-opening here would undo the persistent-failure hide.
   if (fgPersistentFailure) {
@@ -625,9 +656,11 @@ function matchingRule() {
 function isDesktopForeground(d) {
   if (fgPersistentFailure) return false;
   if (!d || isEmptyForegroundReading(d)) return true;
+  // v1.0.3: isScopeExempt is the single definition of "desktop-like" now —
+  // own windows, system overlays, AND the desktop itself (Progman/WorkerW,
+  // explorer with no window, csrss #32769). The old Progman/explorer lines
+  // below it are folded into the helper above.
   if (isScopeExempt(d)) return true;
-  if (d.class === 'Progman' || d.class === 'WorkerW') return true;
-  if (d.process === 'explorer' && (d.title === '' || d.title === 'Program Manager')) return true;
   return false;
 }
 // v5.0.3 (item 8): a manual show (tray, hotkey, second instance,
@@ -644,7 +677,9 @@ function applyForegroundRules() {
   // matter which branch below returns. A real fullscreen app in front (rect
   // covers the whole screen) makes the island click-through until Ctrl is
   // held; a merely maximised window is not fullscreen (isFullscreen is
-  // false for it), and our own windows + system overlays never count.
+  // false for it), and our own windows + system overlays + the desktop
+  // itself never count (v1.0.3: the desktop rect covers the screen, so
+  // without the isScopeExempt check it read as a fullscreen app).
   const fsNow = !!(foregroundState && !isScopeExempt(foregroundState) && foregroundState.isFullscreen);
   if (fsNow !== fullscreenForeground) {
     fullscreenForeground = fsNow;
@@ -663,7 +698,11 @@ function applyForegroundRules() {
     if (!isDesktopForeground(d)) {
       if (islandWin.isVisible()) {
         islandWin.hide();
-        logLine(`scope: island hidden — foreground ${d.process || '?'} "${(d.title || '').slice(0, 60)}" (${d.class || '?'}) is not the desktop`);
+        // v1.0.3: d is null on the fail-closed path (foregroundState is
+        // cleared on every failed poll), so plain d.process/d.title/d.class
+        // threw AFTER hide() ran — the island hid but the log line was
+        // lost and the exception escaped pollForeground uncaught.
+        logLine(`scope: island hidden — foreground ${(d && d.process) || '?'} "${((d && d.title) || '').slice(0, 60)}" (${(d && d.class) || '?'}) is not the desktop`);
       }
       lastAppliedRule = key; return;
     }
@@ -676,7 +715,7 @@ function applyForegroundRules() {
   // slim system strip stays, until the maximised window goes away.
   const slimMaximized = settings.gaming.slimStripMaximized && foregroundState &&
     (foregroundState.isMaximized || foregroundState.isFullscreen) &&
-    foregroundState.process !== 'explorer' && foregroundState.class !== 'Progman' && foregroundState.class !== 'WorkerW';
+    !isScopeExempt(foregroundState); // v1.0.3: desktop/system surfaces never trigger this (was a hardcoded explorer/Progman/WorkerW check that missed csrss #32769)
   if (slimMaximized) {
     if (islandWin.isVisible()) {
       islandWin.hide();
@@ -2573,7 +2612,20 @@ function registerHotkeys() {
   globalShortcut.unregisterAll();
   const k = settings.keys;
   const safe = (accel, fn) => { try { globalShortcut.register(accel, fn); } catch { /* invalid accel */ } };
-  safe(k.toggleIsland, () => { if (!islandWin) return; if (islandWin.isVisible()) { setIslandCollapsed(true); return; } if (!canShowIsland()) return; islandWin.show(); setIslandCollapsed(false); });
+  safe(k.toggleIsland, () => {
+    if (!islandWin) return;
+    if (islandWin.isVisible()) {
+      // v1.0.3: a visible COLLAPSED island EXPANDS on the hotkey (the old
+      // code collapsed in both cases, so pressing it while the pill showed
+      // did nothing visible — PJ's "tried keyboard shortcut also, not
+      // opened"). Visible + expanded still collapses. Keyboard, not mouse,
+      // so it works in click-through mode too.
+      setIslandCollapsed(!islandCollapsed);
+      return;
+    }
+    if (!canShowIsland()) return;
+    islandWin.show(); setIslandCollapsed(false);
+  });
   safe(k.muteMic, () => toggleMicMute());
   safe(k.colorPicker, () => islandWin?.webContents.send('color-pick-request'));
   safe(k.toggleGameStrip, () => { settings.gaming.showStrip = settings.gaming.showStrip === false; saveSettings(); applyGameStrip(); });

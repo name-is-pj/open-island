@@ -22,7 +22,31 @@
 # per-session failure is counted and reported as "skipped" (see below).
 # The empty state stays honest: only a successful check with zero
 # sessions shows "No media playing".
-Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction SilentlyContinue | Out-Null
+# v1.0.3: the WinRT SMTC type must actually RESOLVE before it is used.
+# The old first line loaded System.Runtime.WindowsRuntime with
+# -ErrorAction SilentlyContinue, which hid the load failure - and the
+# literal [Windows.Media.Control...] reference then died with "Unable to
+# find type" on every call (v1.0.2 log openisland-5.log, 5 times), so no
+# media session was ever listed. Resolve the type explicitly:
+# assembly-qualified WinRT name first, then the WinMD file directly. If
+# it still cannot resolve, $smTCType stays $null and the main try throws
+# with the REAL reason (surfaced as mediaState.error), never a silent
+# empty session list.
+$smTCType = $null
+$winrtLoadError = ''
+try {
+  Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction Stop | Out-Null
+  $smTCType = [Type]::GetType('Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime')
+  if ($null -eq $smTCType) {
+    $winmd = Join-Path $env:SystemRoot 'System32\WinMetadata\Windows.Media.Control.winmd'
+    if (Test-Path $winmd) { Add-Type -Path $winmd -ErrorAction Stop | Out-Null }
+    $smTCType = [Type]::GetType('Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime')
+  }
+  if ($null -eq $smTCType) { throw 'WinRT type Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager could not be resolved (tried System.Runtime.WindowsRuntime + Windows.Media.Control.winmd)' }
+} catch {
+  $winrtLoadError = $_.Exception.Message
+  $smTCType = $null
+}
 
 function Get-AppName([string]$aumid) {
   if (-not $aumid) { return 'Unknown app' }
@@ -61,7 +85,8 @@ function Get-Artwork([object]$props) {
 }
 
 try {
-  $mgr = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync().GetAwaiter().GetResult()
+  if ($null -eq $smTCType) { throw "WinRT SMTC type unavailable: $winrtLoadError" }
+  $mgr = $smTCType::RequestAsync().GetAwaiter().GetResult()
   $list = @()
   $skipped = 0
   foreach ($s in $mgr.GetSessions()) {
