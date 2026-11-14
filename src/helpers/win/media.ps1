@@ -13,8 +13,15 @@
 # track transitions and is deleted ~0.8-1s after a skip - a session with an
 # AUMID is kept even with an empty title (the app name is shown instead),
 # and main.js adds a ~1.5s grace period before dropping a vanished session.
-# Never throws: on any failure it prints {"sessions":[]} so the island shows
-# its honest empty state instead of crashing.
+# v1.0.2: failures are REPORTED, never silent. The old version printed
+# {"sessions":[]} on any failure, so a failed WinRT call was invisible:
+# the log had zero media.ps1 failures while the panel showed "No media
+# playing" for a Spotify session playing in Chrome. Now the outer catch
+# prints {"sessions":[],"error":"<real message>"} (pollMedia surfaces it
+# as mediaState.error -> the renderer shows "Media unavailable"), and a
+# per-session failure is counted and reported as "skipped" (see below).
+# The empty state stays honest: only a successful check with zero
+# sessions shows "No media playing".
 Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction SilentlyContinue | Out-Null
 
 function Get-AppName([string]$aumid) {
@@ -56,6 +63,7 @@ function Get-Artwork([object]$props) {
 try {
   $mgr = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync().GetAwaiter().GetResult()
   $list = @()
+  $skipped = 0
   foreach ($s in $mgr.GetSessions()) {
     try {
       $aumid = $s.SourceAppUserModelId
@@ -76,7 +84,12 @@ try {
         position = [double]($tl.Position.TotalSeconds); duration = [double]($tl.EndTime.TotalSeconds)
         artwork = if ($props) { Get-Artwork $props } else { '' }
       }
-    } catch { continue }
+    } catch { $skipped++; continue }
   }
-  @{ sessions = @($list) } | ConvertTo-Json -Compress -Depth 4
-} catch { '{"sessions":[]}' }
+  # A session that throws inside TryGetMediaProperties / GetPlaybackInfo is
+  # counted, not silently dropped: "skipped" is in the payload when > 0,
+  # so the log (via pollMedia) shows a session existed but could not be read.
+  $out = @{ sessions = @($list) }
+  if ($skipped -gt 0) { $out.skipped = $skipped }
+  $out | ConvertTo-Json -Compress -Depth 4
+} catch { '{"sessions":[],"error":"media check failed: ' + ($_.Exception.Message -replace '"', "'") + '"}' }

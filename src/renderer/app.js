@@ -113,6 +113,12 @@ async function init() {
   setInterval(refreshNetwork, 5000);
   window.openisland.on('island-state', ({ collapsed: c }) => {
     collapsed = c; document.body.classList.toggle('expanded', !c);
+    // v1.0.2: the overflow (•••) menu must close WITH the island. Before
+    // this, closeOverflow ran only on an outside click or a menu-item
+    // click, so the menu's .open class survived a collapse and the menu
+    // was still open (Clipboard / Reminders / Gaming / …) the next time
+    // the island expanded — PJ: "why other icons are still showing".
+    if (c) closeOverflow();
     if (!c) { // default tab on open (f-07): Last tab vs Music
       const t = S.island.openTab === 'music' ? 'music' : (localStorage.getItem('oi-last-tab') || 'music');
       if ((S.panels || {})[t] !== false) switchTab(t);
@@ -196,6 +202,11 @@ function syncGamingControls() {
   $('#fpsConsentBox').style.display = S.gaming.fpsConsent === 'unset' ? '' : 'none';
 }
 function switchTab(name) {
+  // v1.0.2: switching panels closes the overflow (•••) menu — the menu
+  // must never survive a panel switch or a fresh expand. (switchTab is
+  // top-level, so it closes the menu via the DOM, not the init-local
+  // closeOverflow; the island-state handler calls closeOverflow directly.)
+  document.querySelector('#overflowMenu')?.classList.remove('open');
   $$('#tabs button[data-tab]').forEach(b => {
     const on = b.dataset.tab === name;
     b.classList.toggle('active', on);

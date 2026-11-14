@@ -374,7 +374,10 @@ async function readForegroundLite(timeoutMs = 2000) {
     try { return { ok: true, data: JSON.parse(fs.readFileSync(testLite, 'utf8')) }; }
     catch { return { ok: false, error: 'lite stub unreadable' }; }
   }
-  return psJson('foreground-lite.ps1', [], timeoutMs);
+  // v1.0.2: the lite check runs inside the persistent helper process too
+  // (same 2 s backstop); the per-call spawn is only the fallback when the
+  // process cannot start at all.
+  return queryForegroundLite(timeoutMs);
 }
 // v1.0.1: time-based fail-closed. If neither foreground check has returned
 // a confirmed reading (or a noFocus desktop-like signal) for
@@ -401,7 +404,7 @@ async function pollForeground() {
   // code path (foregroundState → applyForegroundRules → wallpaper/dock).
   // Never set in production.
   const testFg = process.env.OI_TEST_FOREGROUND;
-  if (!IS_WIN && !testFg) return;
+  if (!IS_WIN && !testFg && !process.env.OI_FG_SERVER_CMD) return;
   if (fgPollInFlight) return; // skip the tick — the in-flight poll is fresher than a queue
   fgPollInFlight = true;
   const seq = ++fgPollSeq;
@@ -415,18 +418,19 @@ async function pollForeground() {
       try { r = { ok: true, data: JSON.parse(fs.readFileSync(testFg, 'utf8')) }; }
       catch { return; } // no reading arrived — timestamp stays stale on purpose
     } else {
-      // v1.0.1: the foreground helpers are capped at 2 s each. A hung or
-      // compiling helper must not block the 500 ms poll - the old 15 s
-      // runPs timeout let one slow helper serialize the whole poll behind
-      // it, so readings went stale and the fail-closed timer could never
-      // be evaluated promptly. Both foreground helpers are UI Automation
-      // now (no C# compile) and normally answer in under a second.
-      r = await psJson('foreground.ps1', [], 2000);
+      // v1.0.2: the foreground check runs inside the persistent helper
+      // process (one powershell.exe, assemblies loaded once) and answers
+      // in ~100-300 ms. The 2 s cap is a BACKSTOP only: a hung server is
+      // killed + respawned by queryForegroundServer, so a slow helper can
+      // never serialize the 500 ms poll behind it again. The per-call
+      // spawn (psJson) is only the fallback when the process cannot start.
+      r = await queryForegroundMain();
     }
-    // v1.0.1: measure the helper. With the 2 s cap a helper can no longer
-    // take 15 s per reading (the v1.0.0 log showed 15.5 s - the Add-Type
-    // compile). A helper that takes >1 s per reading still leaves a
-    // throttled timing line, so a slow machine stays diagnosable.
+    // v1.0.2: measure the helper. With the persistent process a reading
+    // normally takes ~100-300 ms; a helper that takes >1 s per reading
+    // still leaves a throttled timing line, so a slow machine stays
+    // diagnosable (the v1.0.0 log showed 15.5 s - the Add-Type compile;
+    // the v1.0.1 log showed 2.1 s - the per-poll process spawn).
     const tookMs = Date.now() - startedAt;
     if (tookMs > 1000 && Date.now() - fgSlowLoggedAt > 60000) {
       fgSlowLoggedAt = Date.now();
@@ -531,7 +535,7 @@ function isScopeExempt(d) {
 }
 function startForegroundWatcher() {
   if (foregroundPoll) return;
-  if (!IS_WIN && !process.env.OI_TEST_FOREGROUND) return;
+  if (!IS_WIN && !process.env.OI_TEST_FOREGROUND && !process.env.OI_FG_SERVER_CMD) return;
   // v1.0.1: the fail-closed timer starts here — 10 s of grace from launch
   // before "no confirmed reading" can hide the island.
   fgLastConfirmedAt = Date.now();
@@ -794,6 +798,126 @@ function logHelperFailure(scriptName, detail) {
   logLine(`helper failed: ${scriptName} — ${String(detail || '').trim().slice(0, 500)}`);
 }
 
+// ---------- Persistent foreground helper process (v1.0.2) ----------
+// v1.0.1 spawned a fresh powershell.exe per poll: on PJ's machine the
+// spawn + .NET assembly load takes 2.1 s, but the poll capped each helper
+// at 2 s — so the reading was killed before it arrived, no confirmed
+// reading ever landed, and fail-closed hid the island every ~10 s (the
+// open/close cycle in PJ's video). The same stale readings also showed
+// the island over Chrome when a late "openisland" reading arrived while
+// Chrome was actually in front. A marginal cap raise is not a fix.
+// One long-lived powershell.exe (foreground-server.ps1) serves every check
+// over stdin/stdout instead: the assemblies load once at startup and each
+// request is just the UIA query (~100-300 ms).
+// Protocol: main writes "main\n" or "lite\n" to stdin; the server writes
+// exactly one JSON line to stdout per request. The 2 s cap stays as a
+// BACKSTOP only: a reading that takes longer kills + respawns the server
+// and logs it, so a hung helper can never serialize the 500 ms poll.
+// Dev/test hook: OI_FG_SERVER_CMD="<command line>" spawns that command
+// instead of powershell.exe (the rig's mock server, hidden_files/
+// mock-fg-server.js) so the reader is exercised on Linux, where
+// PowerShell does not exist. Never set in production.
+let fgServer = null; // { proc, buf, pending, dead } or null when never started
+let fgServerUnavailableLogged = false;
+function fgServerSpec() {
+  const override = process.env.OI_FG_SERVER_CMD;
+  if (override) {
+    const parts = override.trim().split(/\s+/);
+    if (parts.length && parts[0]) return { cmd: parts[0], args: parts.slice(1) };
+    return null;
+  }
+  if (!IS_WIN) return null;
+  const script = helperPath('foreground-server.ps1');
+  if (!fs.existsSync(script)) return null;
+  return { cmd: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script] };
+}
+function startForegroundServer() {
+  const spec = fgServerSpec();
+  if (!spec) return false;
+  try {
+    const proc = spawn(spec.cmd, spec.args, { windowsHide: true });
+    fgServer = { proc, buf: '', pending: null, dead: false };
+    proc.stdout.on('data', (chunk) => {
+      if (!fgServer || fgServer.proc !== proc) return;
+      fgServer.buf += chunk.toString('utf8');
+      let idx;
+      while ((idx = fgServer.buf.indexOf('\n')) >= 0) {
+        const line = fgServer.buf.slice(0, idx).trim();
+        fgServer.buf = fgServer.buf.slice(idx + 1);
+        const p = fgServer.pending; fgServer.pending = null;
+        if (!p) continue; // unsolicited line — drop it, keep the 1:1 protocol
+        clearTimeout(p.timer);
+        if (!line) { p.resolve({ ok: false, error: 'empty response from foreground helper process' }); continue; }
+        try { p.resolve({ ok: true, data: JSON.parse(line) }); }
+        catch { p.resolve({ ok: false, error: 'bad JSON from foreground helper process' }); }
+      }
+    });
+    // Server errors surface as error JSON lines on stdout; stderr is noise.
+    proc.stderr.on('data', () => {});
+    const fail = () => {
+      if (!fgServer || fgServer.proc !== proc) return;
+      fgServer.dead = true;
+      const p = fgServer.pending; fgServer.pending = null;
+      if (p) { clearTimeout(p.timer); p.resolve({ ok: false, error: 'foreground helper process exited' }); }
+    };
+    proc.on('error', fail);
+    proc.on('exit', fail);
+    return true;
+  } catch { return false; }
+}
+function stopForegroundServer() {
+  if (!fgServer) return;
+  const { proc, pending } = fgServer; fgServer = null;
+  if (pending) { clearTimeout(pending.timer); pending.resolve({ ok: false, error: 'foreground helper process stopped' }); }
+  try { proc.kill(); } catch { /* already gone */ }
+}
+// One request to the persistent server. Serialised: the foreground poll is
+// serialised too, so at most one request is ever in flight; a second caller
+// gets a fast error instead of queuing behind it.
+function queryForegroundServer(kind, timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    if (fgServer && fgServer.pending) return resolve({ ok: false, error: 'foreground helper process busy' });
+    if (!fgServer || fgServer.dead) {
+      if (!startForegroundServer()) {
+        if (!fgServerUnavailableLogged) {
+          fgServerUnavailableLogged = true;
+          logLine('foreground: helper process unavailable — falling back to per-call spawn');
+        }
+        return resolve({ ok: false, error: 'foreground helper process unavailable' });
+      }
+    }
+    const pending = { resolve, timer: null };
+    pending.timer = setTimeout(() => {
+      if (!fgServer || fgServer.pending !== pending) return; // already answered
+      fgServer.pending = null;
+      try { fgServer.proc.kill(); } catch { /* already gone */ }
+      fgServer.dead = true;
+      logLine('foreground: helper process restarted (reading timed out after 2000ms)');
+      resolve({ ok: false, error: 'foreground helper process timed out' });
+    }, timeoutMs);
+    fgServer.pending = pending;
+    try { fgServer.proc.stdin.write(kind + '\n'); }
+    catch {
+      clearTimeout(pending.timer);
+      if (fgServer && fgServer.pending === pending) fgServer.pending = null;
+      if (fgServer) fgServer.dead = true;
+      resolve({ ok: false, error: 'foreground helper process write failed' });
+    }
+  });
+}
+// The per-call spawn path stays as the fallback when the persistent process
+// cannot start at all (powershell missing) — never crash, never spin.
+async function queryForegroundMain(timeoutMs = 2000) {
+  const r = await queryForegroundServer('main', timeoutMs);
+  if (r.ok || r.error !== 'foreground helper process unavailable') return r;
+  return psJson('foreground.ps1', [], 2000);
+}
+async function queryForegroundLite(timeoutMs = 2000) {
+  const r = await queryForegroundServer('lite', timeoutMs);
+  if (r.ok || r.error !== 'foreground helper process unavailable') return r;
+  return psJson('foreground-lite.ps1', [], 2000);
+}
+
 // ---------- System stats (honest, sampled) ----------
 function cpuSample() {
   const cpus = os.cpus();
@@ -804,18 +928,35 @@ function cpuSample() {
   if (lastCpu) { const dI = now.idle - lastCpu.idle, dT = now.total - lastCpu.total; if (dT > 0) pct = Math.round((1 - dI / dT) * 100); }
   lastCpu = now; return pct;
 }
+// v1.0.2: GPU is sampled at most every 10 s and never overlaps itself.
+// getStats runs every 2 s and gpu.ps1 spawns a fresh powershell.exe per
+// call (Get-Counter alone takes ~2 s), so the old code piled up powershell
+// processes on a slow machine and timed out at 15 s. The GPU value is a
+// slow-moving stat — the island shows the last-known value meanwhile —
+// and a slow GPU read must never contend with the foreground poll.
+// (The persistent foreground process does NOT serve gpu.ps1: a 2 s
+// Get-Counter inside the server would stall foreground readings for 2 s.)
+let lastGpuResult = { name: null, load: null, note: 'GPU load needs Windows (Get-Counter) or nvidia-smi' };
+let lastGpuAt = 0;
+let gpuInFlight = false;
 async function getStats() {
   const cpu = cpuSample();
   const mem = { total: os.totalmem(), free: os.freemem(), usedPct: Math.round((1 - os.freemem() / os.totalmem()) * 100) };
   let gpu = { name: null, load: null, note: 'GPU load needs Windows (Get-Counter) or nvidia-smi' };
   if (IS_WIN) {
-    const r = await psJson('gpu.ps1');
-    // gpu.ps1 tries '\GPU Engine(*engtype_3D)\Utilization Percentage' first,
-    // then the broad '\GPU Engine(*)\Utilization Percentage' (max across
-    // engines). A null load means every counter path failed on this machine —
-    // never a fake number; the strip/Widgets show "—" with this note.
-    if (r.ok) gpu = { name: r.data.name || null, load: r.data.load ?? null, note: r.data.load == null ? (r.data.note || 'GPU counter unavailable on this machine (no 3D-engine counter)') : '' };
-    else gpu = { name: null, load: null, note: r.error || 'GPU helper failed' };
+    if (!gpuInFlight && Date.now() - lastGpuAt >= 10000) {
+      gpuInFlight = true;
+      const r = await psJson('gpu.ps1', [], 30000);
+      gpuInFlight = false;
+      lastGpuAt = Date.now();
+      // gpu.ps1 tries '\GPU Engine(*engtype_3D)\Utilization Percentage' first,
+      // then the broad '\GPU Engine(*)\Utilization Percentage' (max across
+      // engines). A null load means every counter path failed on this machine —
+      // never a fake number; the strip/Widgets show "—" with this note.
+      if (r.ok) lastGpuResult = { name: r.data.name || null, load: r.data.load ?? null, note: r.data.load == null ? (r.data.note || 'GPU counter unavailable on this machine (no 3D-engine counter)') : '' };
+      else lastGpuResult = { name: null, load: null, note: r.error || 'GPU helper failed' };
+    }
+    gpu = lastGpuResult;
   } else {
     try {
       const out = await new Promise((res) => execFile('nvidia-smi', ['--query-gpu=name,utilization.gpu', '--format=csv,noheader'], (e, s) => res(e ? '' : s)));
@@ -864,6 +1005,27 @@ async function pollMedia() {
     islandWin?.webContents.send('media-updated', mediaState);
     return;
   }
+  // v1.0.2: media.ps1 reports real errors now (outer failure -> error
+  // payload; per-session failures -> skipped count). Surface both: the
+  // error becomes mediaState.error (the renderer shows "Media
+  // unavailable", never a fake "No media playing"), and a skipped count
+  // is logged (throttled) so a session that throws inside
+  // TryGetMediaProperties is visible in openisland.log. The empty state
+  // stays honest: only a successful check with zero sessions shows
+  // "No media playing".
+  // Media stays on the per-call spawn path on purpose (v1.0.2 note): the
+  // persistent foreground process has ONE pending slot, and a media read
+  // (WinRT + artwork, up to ~1 s) would make foreground ticks fail "busy"
+  // ~15% of the time and flicker the island over Chrome. A media spawn
+  // costs ~2 s on a slow machine but runs concurrently and never blocks
+  // the foreground poll; pollMedia is serialised (skip-if-in-flight).
+  if (r.data.error) {
+    mediaState = { ...mediaState, error: String(r.data.error).slice(0, 200) };
+    logHelperFailure('media.ps1', r.data.error);
+    islandWin?.webContents.send('media-updated', mediaState);
+    return;
+  }
+  if (r.data.skipped > 0) logHelperFailure('media.ps1', `${r.data.skipped} media session(s) skipped (failed to read properties)`);
   const now = Date.now();
   const fresh = (r.data.sessions || []).map(s => ({
     id: s.id || ('title:' + (s.title || '')),
@@ -2068,10 +2230,13 @@ function setupIpc() {
   // v5.0.0 (item F): Dev/test hook only — exposes the internal scope /
   // fullscreen / click-through state so the rig can verify item F against
   // the real code path on Linux (OI_TEST_FOREGROUND simulates the
-  // foreground window). Registered ONLY when the hook is set; absent in
+  // foreground window). Registered ONLY when a test hook is set; absent in
   // production. `ignoreMouse` is the last value passed to
   // setIgnoreMouseEvents (Electron has no getter for it).
-  if (process.env.OI_TEST_FOREGROUND) {
+  // v1.0.2: OI_FG_SERVER_CMD also registers it — the scope suite runs
+  // against the persistent-process reader in that mode, and without this
+  // channel it cannot read the island state at all.
+  if (process.env.OI_TEST_FOREGROUND || process.env.OI_FG_SERVER_CMD) {
     ipcMain.handle('debug-state', () => ({
       visible: islandWin ? islandWin.isVisible() : false,
       collapsed: islandCollapsed,
@@ -2098,6 +2263,10 @@ function setupIpc() {
       // 10 s) and the last-confirmed timestamp it is measured from.
       fgPersistentFailure,
       fgLastConfirmedAt,
+      // v1.0.2: persistent foreground helper process state, so the rig can
+      // verify the server is up (and the fail-closed tests run against the
+      // real reader, not the stub path).
+      fgServerAlive: !!(fgServer && !fgServer.dead),
     }));
   }
   // v5.0.1 (item 4): renderer self-check channel — the Settings window
@@ -2149,6 +2318,15 @@ function setupIpc() {
     return { ok: true, path: filePaths[0], name: path.basename(filePaths[0]).replace(/\.(exe|lnk)$/i, '') };
   });
   // Network throughput + power state (Widgets stats card, dock tray).
+  // v1.0.2: netstat never overlaps itself — the renderer asks every 5 s
+  // and netstat.ps1 spawns a fresh powershell.exe per call, so on a slow
+  // machine overlapping calls piled up and timed out at 15 s. A call in
+  // flight returns the last-known value instead of spawning another
+  // process; the timeout is 30 s so a slow (not hung) machine is not
+  // killed. This can never block the foreground poll (separate interval,
+  // and the foreground checks no longer spawn per poll at all).
+  let netstatInFlight = false;
+  let lastNetworkResult = null;
   ipcMain.handle('get-network', async () => {
     if (!IS_WIN) {
       try {
@@ -2157,8 +2335,12 @@ function setupIpc() {
         return { ok: true, down: Math.round((b.rx - a.rx) * 2), up: Math.round((b.tx - a.tx) * 2) };
       } catch { return { ok: false, error: 'network counters unavailable' }; }
     }
-    const r = await psJson('netstat.ps1');
-    return r.ok ? { ok: true, down: r.data.down, up: r.data.up } : { ok: false, error: r.error };
+    if (netstatInFlight) return lastNetworkResult || { ok: false, error: 'network counters busy' };
+    netstatInFlight = true;
+    const r = await psJson('netstat.ps1', [], 30000);
+    netstatInFlight = false;
+    if (r.ok) lastNetworkResult = { ok: true, down: r.data.down, up: r.data.up };
+    return r.ok ? lastNetworkResult : { ok: false, error: r.error };
   });
   ipcMain.handle('get-power', async () => {
     if (!IS_WIN) return { ok: false, error: 'Windows-only' };
@@ -2409,6 +2591,10 @@ if (!gotLock) app.quit();
 else app.on('second-instance', () => { if (islandWin && canShowIsland()) { islandWin.show(); setIslandCollapsed(false); } });
 
 app.whenReady().then(() => {
+  // v1.0.2: the log opens with the version, so a future log identifies the
+  // build immediately (the v1.0.1 log had no version line and the build had
+  // to be inferred from the fail-closed wording).
+  logLine(`OpenIsland v${app.getVersion()} starting — ${process.platform} ${process.arch} — userData ${USER_DATA}`);
   Menu.setApplicationMenu(null); // item 16 (repeated here: the top-level call can run before app ready)
   clipHistory = loadClipHistory();
   for (const r of reminders) if (r.at > Date.now()) scheduleReminder(r);
@@ -2488,6 +2674,7 @@ app.on('will-quit', () => {
 app.on('before-quit', () => {
   // Item 14: destroy the tray and restore the Windows taskbar + work area.
   isQuitting = true;
+  stopForegroundServer(); // v1.0.2: kill the persistent helper process (its stdin also closes, so it would exit on its own — belt and braces)
   if (tray) { try { tray.destroy(); } catch { /* already gone */ } tray = null; }
   restoreTaskbarSync();
 });

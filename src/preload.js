@@ -26,7 +26,7 @@ contextBridge.exposeInMainWorld('openisland', {
   dockList: () => ipcRenderer.invoke('dock-list'),
   taskbarStatus: () => ipcRenderer.invoke('taskbar-status'),
   openSettingsUri: (uri) => ipcRenderer.invoke('open-settings-uri', uri),
-  debugState: () => ipcRenderer.invoke('debug-state'), // test hook only (item F); the channel exists only when OI_TEST_FOREGROUND is set
+  debugState: () => ipcRenderer.invoke('debug-state'), // test hook only (item F); the channel exists only when OI_TEST_FOREGROUND or OI_FG_SERVER_CMD is set
   logDiag: (msg) => ipcRenderer.invoke('log-diagnostic', msg), // v5.0.1 (item 4): renderer self-check failures go to openisland.log
   dockAction: (action, arg) => ipcRenderer.invoke('dock-action', action, arg),
   pickTaskbarApp: () => ipcRenderer.invoke('pick-taskbar-app'),
