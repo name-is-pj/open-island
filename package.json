@@ -1,6 +1,6 @@
 {
   "name": "openisland",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "OpenIsland — a free, open Dynamic Island / notch for Windows 10/11. No account, no ads, no telemetry.",
   "main": "src/main.js",
   "author": "OpenIsland contributors",

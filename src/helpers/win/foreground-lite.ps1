@@ -2,7 +2,10 @@
 # foreground.ps1 persistently fails. It uses UI Automation
 # (UIAutomationClient, a framework assembly load) instead of Add-Type C#
 # compilation, so it works on machines where the compiled helper cannot run
-# at all. Returns the SAME JSON shape as foreground.ps1, plus "via":"uia".
+# at all. v1.0.1: $pid is PowerShell's read-only automatic variable
+# (case-insensitive) - the old `$pid = $target.Current.ProcessId` crashed
+# every invocation; the process id now lives in $procId. Returns the SAME
+# JSON shape as foreground.ps1, plus "via":"uia".
 #   {"noFocus":true} means no element has focus right now - nothing is
 #   focused, which on a real machine means the desktop/shell is in front
 #   (a real app in front almost always owns the focus). The caller treats
@@ -26,9 +29,9 @@ try {
   if ($null -eq $title) { $title = '' }
   $cls = $target.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::ClassNameProperty)
   if ($null -eq $cls) { $cls = '' }
-  $pid = $target.Current.ProcessId
+  $procId = $target.Current.ProcessId
   $proc = ''
-  try { $proc = (Get-Process -Id $pid -ErrorAction Stop).ProcessName } catch { $proc = '' }
+  try { $proc = (Get-Process -Id $procId -ErrorAction Stop).ProcessName } catch { $proc = '' }
   $hwnd = $target.Current.NativeWindowHandle
   if ($null -eq $hwnd) { $hwnd = 0 }
   $isMaximized = $false

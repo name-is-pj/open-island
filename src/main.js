@@ -339,16 +339,28 @@ let fgPollSeq = 0;
 // machine - v5.0.3 fail-open then kept the island visible over apps forever
 // (PJ's video: the island over maximised Chrome for 52 s) with NO log line,
 // because an error payload exits 0 and pollForeground never logged it.
-//   fgConsecutiveFailures — ticks with NO confirmed reading from either
-//     the main helper or the lightweight fallback.
-//   fgPersistentFailure — set after FG_FAIL_CLOSED_AFTER consecutive
-//     failures: the island HIDES (fail-closed) instead of sitting over apps
-//     forever. Cleared the moment any confirmed reading arrives.
+// v1.0.1: the compile is GONE (foreground.ps1 uses UI Automation now, like
+// the lite check) and the fail-closed rule is TIME-based, not count-based:
+//   fgLastConfirmedAt — ms epoch of the last CONFIRMED reading from either
+//     check, or a "noFocus" answer from the lite check (nothing has focus
+//     is a meaningful desktop-like signal, not a failure). A "noFocus"
+//     answer also resets the timer.
+//   fgPersistentFailure — set when NO confirmed reading has arrived for
+//     FG_FAIL_CLOSED_AFTER_MS (10 s): the island HIDES (fail-closed)
+//     instead of sitting over apps forever. Cleared the moment any confirmed
+//     reading (or noFocus) arrives.
+//   Why time, not count: the old 10-consecutive-ticks counter never fired
+//     on PJ's machine - a slow helper made each tick 15 s long, and any
+//     single noFocus reading reset the count to zero, so 3 minutes of
+//     continuous failure never reached 10 ticks. A wall-clock timer cannot
+//     be reset by one lucky reading and cannot be stretched by a slow helper.
 //   A "noFocus" answer from the lite check is a meaningful desktop-like
-//   signal (nothing has focus) - it resets the counter, it is not a failure.
-const FG_FAIL_CLOSED_AFTER = 10;
-let fgConsecutiveFailures = 0;
+//   signal (nothing has focus) - it resets the timer, it is not a failure.
+const FG_FAIL_CLOSED_AFTER_MS = 10000;
+let fgLastConfirmedAt = 0; // ms epoch; 0 = no confirmed reading yet
 let fgPersistentFailure = false;
+let fgLastMainErr = ''; // last main-helper error text (for the fail-closed log line)
+let fgLastLiteErr = ''; // last lite-helper error text (same)
 let fgLiteFallbackLogged = false;
 let fgFailClosedLogged = false;
 let fgSlowLoggedAt = 0;
@@ -356,13 +368,30 @@ let fgSlowLoggedAt = 0;
 // OI_TEST_FOREGROUND_LITE=<path> feeds a stubbed lite result so the
 // fallback + fail-closed path can be verified on Linux. Without it the lite
 // fallback only runs on real Windows.
-async function readForegroundLite() {
+async function readForegroundLite(timeoutMs = 2000) {
   const testLite = process.env.OI_TEST_FOREGROUND_LITE;
   if (testLite) {
     try { return { ok: true, data: JSON.parse(fs.readFileSync(testLite, 'utf8')) }; }
     catch { return { ok: false, error: 'lite stub unreadable' }; }
   }
-  return psJson('foreground-lite.ps1');
+  return psJson('foreground-lite.ps1', [], timeoutMs);
+}
+// v1.0.1: time-based fail-closed. If neither foreground check has returned
+// a confirmed reading (or a noFocus desktop-like signal) for
+// FG_FAIL_CLOSED_AFTER_MS, the island hides instead of sitting over apps
+// forever. Called from pollForeground's failure path AND from the freshness
+// watchdog, so it fires even when a poll is stuck behind a hung helper.
+// Idempotent: once set, only a confirmed reading clears it.
+function maybeFailClosed(mainErr, liteErr) {
+  if (fgPersistentFailure) return;
+  if (fgLastConfirmedAt === 0) return; // watcher not started yet; grace period
+  const elapsedMs = Date.now() - fgLastConfirmedAt;
+  if (elapsedMs < FG_FAIL_CLOSED_AFTER_MS) return;
+  fgPersistentFailure = true;
+  if (!fgFailClosedLogged) {
+    fgFailClosedLogged = true;
+    logLine(`foreground: NO confirmed reading for ${Math.round(elapsedMs / 1000)}s (main: ${(mainErr || 'empty').slice(0, 120)}; lightweight: ${(liteErr || 'empty').slice(0, 120)}) — hiding island (fail-closed); it shows again when a reading arrives`);
+  }
 }
 async function pollForeground() {
   // Dev/test hook only: OI_TEST_FOREGROUND=<path to a JSON file> feeds a
@@ -386,17 +415,22 @@ async function pollForeground() {
       try { r = { ok: true, data: JSON.parse(fs.readFileSync(testFg, 'utf8')) }; }
       catch { return; } // no reading arrived — timestamp stays stale on purpose
     } else {
-      r = await psJson('foreground.ps1');
+      // v1.0.1: the foreground helpers are capped at 2 s each. A hung or
+      // compiling helper must not block the 500 ms poll - the old 15 s
+      // runPs timeout let one slow helper serialize the whole poll behind
+      // it, so readings went stale and the fail-closed timer could never
+      // be evaluated promptly. Both foreground helpers are UI Automation
+      // now (no C# compile) and normally answer in under a second.
+      r = await psJson('foreground.ps1', [], 2000);
     }
-    // v1.0.0 (item C): measure the helper — the comment at the top of this
-    // section says Add-Type compile takes ~1-3 s per fresh powershell.exe
-    // while the poll runs every 500 ms. A helper that takes >5 s per
-    // reading (or times out at runPs's 15 s) leaves a throttled timing line
-    // in the log, so a too-slow helper is diagnosable from PJ's log.
+    // v1.0.1: measure the helper. With the 2 s cap a helper can no longer
+    // take 15 s per reading (the v1.0.0 log showed 15.5 s - the Add-Type
+    // compile). A helper that takes >1 s per reading still leaves a
+    // throttled timing line, so a slow machine stays diagnosable.
     const tookMs = Date.now() - startedAt;
-    if (tookMs > 5000 && Date.now() - fgSlowLoggedAt > 60000) {
+    if (tookMs > 1000 && Date.now() - fgSlowLoggedAt > 60000) {
       fgSlowLoggedAt = Date.now();
-      logLine(`foreground: helper slow (${(tookMs / 1000).toFixed(1)}s per reading) — Add-Type compile per fresh powershell.exe vs the 500 ms poll; readings lag reality by this much`);
+      logLine(`foreground: helper slow (${(tookMs / 1000).toFixed(1)}s per reading) — readings lag reality by this much`);
     }
     if (seq !== fgPollSeq) return; // stale completion — a newer poll already ran
     // A completed reading (good or failed) is fresh by definition: a failed
@@ -420,14 +454,17 @@ async function pollForeground() {
         isFullscreen: !!d.isFullscreen, isMaximized: !!d.isMaximized,
       };
       if (fgPersistentFailure) logLine(`foreground: confirmed reading restored (${foregroundState.process || '?'} "${(foregroundState.title || '').slice(0, 40)}") — fail-closed cleared, normal scope rules resume`);
-      fgConsecutiveFailures = 0; fgPersistentFailure = false; fgFailClosedLogged = false; fgLiteFallbackLogged = false;
+      fgLastConfirmedAt = Date.now(); fgPersistentFailure = false; fgFailClosedLogged = false; fgLiteFallbackLogged = false;
     } else {
       const errText = (!r.ok ? (r.error || '') : (r.data && r.data.error ? String(r.data.error) : ''));
       if (errText) logHelperFailure('foreground.ps1', errText);
+      fgLastMainErr = errText || '';
       if (!useLite) {
         // Test-stub path (old suites): v5.0.3 behaviour exactly — no
-        // fallback, no counter, fail-open.
+        // fallback, fail-open. The time-based fail-closed still applies:
+        // if no confirmed reading arrives for 10 s, the island hides.
         foregroundState = null;
+        maybeFailClosed(errText, '');
       } else {
         const lite = await readForegroundLite();
         const liteConfirmed = lite.ok && lite.data && !isEmptyForegroundReading(lite.data);
@@ -442,24 +479,18 @@ async function pollForeground() {
             fgLiteFallbackLogged = true;
             logLine(`foreground: main helper failing (${(errText || 'empty reading').slice(0, 120)}) — using lightweight check (UIAutomation, no Add-Type compile)`);
           }
-          fgConsecutiveFailures = 0; fgPersistentFailure = false; fgFailClosedLogged = false;
+          fgLastConfirmedAt = Date.now(); fgPersistentFailure = false; fgFailClosedLogged = false;
         } else if (lite.ok && lite.data && lite.data.noFocus) {
           // Nothing has focus: desktop-like. A meaningful signal, not a
-          // failure — the counter resets and the island shows.
+          // failure — the timer resets and the island shows.
           foregroundState = null;
-          fgConsecutiveFailures = 0; fgPersistentFailure = false; fgFailClosedLogged = false;
+          fgLastConfirmedAt = Date.now(); fgPersistentFailure = false; fgFailClosedLogged = false;
         } else {
           const liteErr = (!lite.ok ? (lite.error || '') : (lite.data && lite.data.error ? String(lite.data.error) : ''));
           if (liteErr) logHelperFailure('foreground-lite.ps1', liteErr);
+          fgLastLiteErr = liteErr || '';
           foregroundState = null;
-          fgConsecutiveFailures += 1;
-          if (fgConsecutiveFailures >= FG_FAIL_CLOSED_AFTER && !fgPersistentFailure) {
-            fgPersistentFailure = true;
-            if (!fgFailClosedLogged) {
-              fgFailClosedLogged = true;
-              logLine(`foreground: NO confirmed reading for ${fgConsecutiveFailures} consecutive ticks (main: ${(errText || 'empty').slice(0, 120)}; lightweight: ${(liteErr || 'empty').slice(0, 120)}) — hiding island (fail-closed); it shows again when a reading arrives`);
-            }
-          }
+          maybeFailClosed(errText, liteErr);
         }
       }
     }
@@ -501,6 +532,9 @@ function isScopeExempt(d) {
 function startForegroundWatcher() {
   if (foregroundPoll) return;
   if (!IS_WIN && !process.env.OI_TEST_FOREGROUND) return;
+  // v1.0.1: the fail-closed timer starts here — 10 s of grace from launch
+  // before "no confirmed reading" can hide the island.
+  fgLastConfirmedAt = Date.now();
   foregroundPoll = setInterval(() => { pollForeground(); checkForegroundFreshness(); }, 500);
   if (foregroundPoll.unref) foregroundPoll.unref();
   pollForeground();
@@ -512,12 +546,25 @@ function startForegroundWatcher() {
 // the watchdog can fire again later. Runs on the same 500 ms cadence as
 // the poll, so it fires within ~5 s of the last good reading.
 function checkForegroundFreshness() {
-  if (!fgHasReading || fgStaleFailOpenLogged) return;
+  if (!fgHasReading) return;
   if (Date.now() - fgLastReadingAt <= 5000) return;
-  fgStaleFailOpenLogged = true;
+  // v1.0.1: the fail-closed timer is evaluated here too, so it fires even
+  // when a poll is stuck behind a hung helper and never completes. The
+  // stored last error texts go into the log line.
+  maybeFailClosed(fgLastMainErr, fgLastLiteErr);
   // v1.0.0 (item C): a stale reading while ALREADY fail-closed stays hidden
   // — fail-opening here would undo the persistent-failure hide.
-  if (fgPersistentFailure) { logLine('foreground: no fresh reading for 5s AND persistent failure — staying hidden (fail-closed)'); return; }
+  if (fgPersistentFailure) {
+    if (!fgStaleFailOpenLogged) {
+      fgStaleFailOpenLogged = true;
+      logLine('foreground: no fresh reading for 5s AND persistent failure — staying hidden (fail-closed)');
+    }
+    applyForegroundRules();
+    applyDockStepAside();
+    return;
+  }
+  if (fgStaleFailOpenLogged) return;
+  fgStaleFailOpenLogged = true;
   foregroundState = null;
   logLine(`foreground: no fresh reading for 5s (last ${Math.round((Date.now() - fgLastReadingAt) / 1000)}s ago) — fail-open, showing island + dock`);
   applyForegroundRules();
@@ -567,10 +614,10 @@ function matchingRule() {
 // window title. Anything else is a confirmed real app in front.
 // v1.0.0 (item C): EXCEPT after persistent failure — when neither the main
 // helper nor the lightweight fallback has returned a confirmed reading for
-// FG_FAIL_CLOSED_AFTER ticks, "unknown" no longer counts as desktop: the
-// island hides (fail-closed) and manual shows are blocked, so the widget
-// cannot sit over apps forever just because its foreground check is broken.
-// A confirmed reading clears the flag immediately.
+// 10 seconds, "unknown" no longer counts as desktop: the island hides
+// (fail-closed) and manual shows are blocked, so the widget cannot sit over
+// apps forever just because its foreground check is broken. A confirmed
+// reading clears the flag immediately.
 function isDesktopForeground(d) {
   if (fgPersistentFailure) return false;
   if (!d || isEmptyForegroundReading(d)) return true;
@@ -703,7 +750,7 @@ const HELPER_FRIENDLY_ERROR = {
   'affinity.ps1': 'Capture setting is unavailable right now',
   'netstat.ps1': 'Network stats are unavailable right now',
 };
-function runPs(scriptName, args = []) {
+function runPs(scriptName, args = [], timeoutMs = 15000) {
   return new Promise((resolve) => {
     if (!IS_WIN) return resolve({ ok: false, error: 'Windows-only helper (not running on Windows)', output: '' });
     const script = helperPath(scriptName);
@@ -713,19 +760,22 @@ function runPs(scriptName, args = []) {
       return resolve({ ok: false, error: HELPER_FRIENDLY_ERROR[scriptName] || 'Helper is unavailable right now', output: '' });
     }
     execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...args],
-      { timeout: 15000, windowsHide: true }, (err, stdout, stderr) => {
+      { timeout: timeoutMs, windowsHide: true }, (err, stdout, stderr) => {
         if (err) {
           // Log the raw detail for diagnosis; the UI only ever sees the short message.
-          console.error(`[openisland] helper failed: ${scriptName}`, (stderr || err.message || '').trim().slice(0, 500));
-          logHelperFailure(scriptName, stderr || err.message || '');
+          // v1.0.1: a killed process means the timeout fired - say so, so a
+          // hung helper is distinguishable from a helper that failed fast.
+          const detail = (err.killed ? `helper timed out after ${timeoutMs}ms: ` : '') + (stderr || err.message || '');
+          console.error(`[openisland] helper failed: ${scriptName}`, detail.trim().slice(0, 500));
+          logHelperFailure(scriptName, detail);
           return resolve({ ok: false, error: HELPER_FRIENDLY_ERROR[scriptName] || 'Helper is unavailable right now', output: (stdout || '').trim() });
         }
         resolve({ ok: true, output: (stdout || '').trim() });
       });
   });
 }
-async function psJson(scriptName, args = []) {
-  const r = await runPs(scriptName, args);
+async function psJson(scriptName, args = [], timeoutMs = 15000) {
+  const r = await runPs(scriptName, args, timeoutMs);
   if (!r.ok) return { ok: false, error: r.error };
   try { return { ok: true, data: JSON.parse(r.output) }; } catch { logHelperFailure(scriptName, 'bad JSON from helper: ' + String(r.output).slice(0, 500)); return { ok: false, error: 'bad JSON from helper', raw: r.output }; }
 }
@@ -2043,10 +2093,11 @@ function setupIpc() {
       // stays open with the pointer far away.
       pointerEntered: pointerEnteredSinceExpand,
       expandAt,
-      // v1.0.0 (item C): persistent-foreground-failure state, so the rig can
-      // verify the fail-closed hide after FG_FAIL_CLOSED_AFTER ticks.
+      // v1.0.1: persistent-foreground-failure state, so the rig can
+      // verify the time-based fail-closed hide (no confirmed reading for
+      // 10 s) and the last-confirmed timestamp it is measured from.
       fgPersistentFailure,
-      fgConsecutiveFailures,
+      fgLastConfirmedAt,
     }));
   }
   // v5.0.1 (item 4): renderer self-check channel — the Settings window

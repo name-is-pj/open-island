@@ -1,4 +1,4 @@
-; OpenIsland v1.0.0 - Windows Installer (built with native makensis on Linux, no Wine needed)
+; OpenIsland v1.0.1 - Windows Installer (built with native makensis on Linux, no Wine needed)
 ; Installs the portable Electron build, Start Menu + Desktop shortcuts, Add/Remove Programs entry.
 ; Compiled with absolute -D paths (this makensis build cannot do !if /FileExists):
 ;   makensis -DSRC_DIR=<abs path to app/release/win-unpacked> -DOUTDIR=<abs path to hidden_files> -DICON_PATH=<abs path to app/assets/icon.ico> installer/open-island.nsi
@@ -20,7 +20,7 @@
 
 ; ---------- Branding ----------
 Name "OpenIsland"
-OutFile "${OUTDIR}\OpenIsland-Setup-1.0.0.exe"
+OutFile "${OUTDIR}\OpenIsland-Setup-1.0.1.exe"
 InstallDir "$PROGRAMFILES64\OpenIsland"
 InstallDirRegKey HKLM "Software\OpenIsland" "InstallDir"
 RequestExecutionLevel admin
@@ -30,11 +30,11 @@ Icon "${ICON_PATH}"
 !define MUI_UNICON "${ICON_PATH}"
 
 ; Version info shown in file properties
-VIProductVersion "1.0.0.0"
+VIProductVersion "1.0.1.0"
 VIAddVersionKey "ProductName" "OpenIsland"
 VIAddVersionKey "CompanyName" "OpenIsland"
-VIAddVersionKey "FileVersion" "1.0.0"
-VIAddVersionKey "ProductVersion" "1.0.0"
+VIAddVersionKey "FileVersion" "1.0.1"
+VIAddVersionKey "ProductVersion" "1.0.1"
 VIAddVersionKey "FileDescription" "OpenIsland Setup"
 
 ; ---------- Modern UI ----------
