@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css"><link rel="stylesheet" href="styles.css"><style>
+body{ background:var(--bg); background-image:var(--bg-grad); backdrop-filter:var(--blur); -webkit-backdrop-filter:var(--blur); border:1px solid var(--border); border-radius:20px; padding:18px 22px; box-shadow:var(--shadow), inset 0 1px 0 var(--hl); }
+h3{ display:flex; align-items:center; gap:8px; }
+h3 .oi-ic{ width:18px; height:18px; }
+</style></head><body>
+<script src="icons.js"></script>
+<h3 style="margin-top:0"><svg class="oi-ic" aria-hidden="true"><use href="#i-bell"/></svg> Reminder</h3>
+<p id="text" style="font-size:15px"></p>
+<div class="row" style="margin-top:12px">
+  <button class="btn accent" id="done">Done</button>
+  <button class="btn" data-snooze="5">Snooze 5 min</button>
+  <button class="btn" data-snooze="15">Snooze 15 min</button>
+</div>
+<script>
+const id = +new URLSearchParams(location.search).get('id');
+document.getElementById('text').textContent = decodeURIComponent(new URLSearchParams(location.search).get('text') || 'Reminder');
+document.getElementById('done').addEventListener('click', () => window.openisland.reminderDone(id));
+document.querySelectorAll('[data-snooze]').forEach(b => b.addEventListener('click', () => window.openisland.reminderSnooze(id, +b.dataset.snooze)));
+</script></body></html>

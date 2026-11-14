@@ -1,0 +1,194 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css"><link rel="stylesheet" href="styles.css"></head>
+<body>
+<script src="icons.js"></script>
+<div id="island">
+  <div id="frame"></div>
+  <div id="collapsed" title="Hover to open — Ctrl+Alt+N">
+    <span class="dot" id="privacyDot" title="Mic / camera / capture is live"></span>
+    <span id="eq"><i></i><i></i><i></i><i></i></span>
+    <span id="collapsedGrid" title="Music playing"><svg class="oi-ic"><use href="#i-dots"/></svg></span>
+  </div>
+  <div id="expanded">
+    <div id="tabs">
+      <!-- v1.0.0: a BARE icon row in the reference order — no background bar,
+           no border, no pill, no X. music, web, notifications, files,
+           controls, widgets, •••, calls, headphones (= controls), settings,
+           profile. Panels without a strip icon live in the ••• menu.
+           Headphones has no data-tab (it shares the Controls panel) — it
+           uses data-panel so applyTabs hides it when Controls is off. -->
+      <div class="tabbar">
+      <button data-tab="music" class="active" title="Music"><svg class="oi-ic"><use href="#i-music"/></svg></button>
+      <button data-tab="web" title="Web drawer"><svg class="oi-ic"><use href="#i-globe"/></svg></button>
+      <button data-tab="notifications" title="Notifications"><svg class="oi-ic"><use href="#i-bell"/></svg></button>
+      <button data-tab="files" title="Files"><svg class="oi-ic"><use href="#i-folder"/></svg></button>
+      <button data-tab="controls" title="Controls"><svg class="oi-ic"><use href="#i-sliders"/></svg></button>
+      <button data-tab="widgets" title="Widgets"><svg class="oi-ic"><use href="#i-grid"/></svg></button>
+      <button id="moreBtn" class="iconbtn" title="More"><svg class="oi-ic"><use href="#i-more"/></svg></button>
+      <button data-tab="calls" title="Calls"><svg class="oi-ic"><use href="#i-phone"/></svg></button>
+      <button id="headphonesBtn" data-panel="controls" title="Controls"><svg class="oi-ic"><use href="#i-headphones"/></svg></button>
+      <button id="settingsBtn" class="iconbtn" title="Settings"><svg class="oi-ic"><use href="#i-gear"/></svg></button>
+      <button id="profileBtn" class="iconbtn profile" title="About OpenIsland"><svg class="oi-ic"><use href="#i-user"/></svg></button>
+      </div>
+      <div id="overflowMenu">
+        <button data-tab="clipboard"><svg class="oi-ic"><use href="#i-clipboard"/></svg> Clipboard</button>
+        <button data-tab="reminders"><svg class="oi-ic"><use href="#i-clock"/></svg> Reminders</button>
+        <button data-tab="gaming"><svg class="oi-ic"><use href="#i-gamepad"/></svg> Gaming</button>
+        <button data-tab="deck"><svg class="oi-ic"><use href="#i-smartphone"/></svg> Deck</button>
+        <button data-tab="stream"><svg class="oi-ic"><use href="#i-video"/></svg> Stream</button>
+        <div class="ov-sep"></div>
+        <button id="ovOpenAudio"><svg class="oi-ic"><use href="#i-music"/></svg> Open audio file</button>
+        <button id="ovLyrics"><svg class="oi-ic"><use href="#i-file-text"/></svg> Lyrics</button>
+        <div id="ovFavs"></div>
+        <div class="ov-sep"></div>
+        <button id="ovShot"><svg class="oi-ic"><use href="#i-camera"/></svg> Screenshot</button>
+        <button id="ovSnip"><svg class="oi-ic"><use href="#i-scissors"/></svg> Region snip</button>
+        <button id="ovRec"><svg class="oi-ic"><use href="#i-record"/></svg> Record screen</button>
+      </div>
+    </div>
+    <div id="body">
+      <div class="panel active" id="panel-music">
+        <!-- v1.0.0: just the music card. The carousel nav, the Lyrics /
+             Open-audio row and the SMTC paragraph are gone from the panel —
+             they live in the ••• overflow menu. The hidden file input +
+             player stay (the overflow "Open audio file" item triggers them)
+             and the lyrics box stays for the overflow Lyrics action. -->
+        <div id="musicViewport"><div id="musicTrack"></div></div>
+        <input type="file" id="audioFile" accept="audio/*" style="display:none">
+        <audio id="player" style="display:none"></audio>
+        <div id="lyricsBox" style="display:none;margin-top:10px"><div class="muted small" id="lyricsStatus"></div><div id="lyricsLines"></div></div>
+      </div>
+
+      <div class="panel" id="panel-widgets">
+        <!-- v1.0.0: ONE compact card as a 2x2 grid of sub-cards (date, weather,
+             focus timer, PC stats) with the notifications bell centred at the
+             bottom. No Lat/Lon inputs (location is a setting), no FPS
+             paragraph (just "FPS —" when no game), no task row, no toggle
+             row — those live in Settings → Widgets or the Reminders panel. -->
+        <div class="card wcard">
+          <div class="wgrid2">
+            <div class="wsub">
+              <div class="wdate-big"><div class="wdaynum" id="wDayNum">12</div><div><div class="wmon" id="wMon">THU NOV</div><div class="wweek" id="wWeek">Week 46</div></div></div>
+              <div id="weekStrip" class="weekstrip"></div>
+            </div>
+            <div class="wsub">
+              <div class="wfocus">
+                <div><div class="ftime" id="focusTime">25:00</div><div class="flabel" id="focusLabel">25 + 5 min</div></div>
+                <div class="fctl">
+                  <button class="tbtn" id="focusMinus" title="Shorter"><svg class="oi-ic"><use href="#i-minus"/></svg></button>
+                  <button class="tbtn main" id="focusPlay" title="Start / pause focus timer"><svg class="oi-ic"><use href="#i-play"/></svg></button>
+                  <button class="tbtn" id="focusPlus" title="Longer"><svg class="oi-ic"><use href="#i-plus"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="wsub">
+              <div class="wweather" id="weatherBox">Loading…</div>
+            </div>
+            <div class="wsub">
+              <div class="wstats" id="statsBars"></div>
+              <div class="wnet"><span>↓ <b id="netDown">—</b></span><span>↑ <b id="netUp">—</b></span><span id="fpsNote" style="margin-left:auto">FPS —</span></div>
+            </div>
+          </div>
+          <div class="wbell-row"><button class="wbell" id="wBell" title="Notifications"><svg class="oi-ic"><use href="#i-bell"/></svg></button></div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-controls">
+        <!-- v1.0.0: two white sliders + 6 tiles with word states + the
+             Battery / Balanced / Performance segmented control. Favourite
+             apps and Tools live in the ••• overflow menu now; the "Power
+             mode" label and the footer paragraph are gone. -->
+        <div class="ctrlgrid">
+          <div class="vsliders">
+            <div class="vslider" id="briSlider" role="slider" tabindex="0" aria-label="Brightness" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="vval" id="briVal">100%</span><div class="vbar"><i></i></div><span class="vico"><svg class="oi-ic"><use href="#i-sun"/></svg></span></div>
+            <div class="vslider" id="volSlider" role="slider" tabindex="0" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="vval" id="volVal">100%</span><div class="vbar"><i></i></div><span class="vico"><svg class="oi-ic"><use href="#i-volume"/></svg></span></div>
+          </div>
+          <div class="tilegrid">
+            <button class="tile" id="wifiTile"><span class="t-ico"><svg class="oi-ic lg"><use href="#i-wifi"/></svg></span><span class="t-name">Wi-Fi</span><span class="t-state" id="wifiState">Off</span></button>
+            <button class="tile" id="nlTile"><span class="t-ico"><svg class="oi-ic lg"><use href="#i-moon"/></svg></span><span class="t-name">Night light</span><span class="t-state" id="nlState">Off</span></button>
+            <button class="tile" id="focusTile"><span class="t-ico"><svg class="oi-ic lg"><use href="#i-target"/></svg></span><span class="t-name">Focus</span><span class="t-state" id="focusState">Off</span></button>
+            <button class="tile" id="muteTile"><span class="t-ico"><svg class="oi-ic lg"><use href="#i-volume-x"/></svg></span><span class="t-name">Mute</span><span class="t-state" id="muteState">Sound on</span></button>
+            <button class="tile" id="spkTile"><span class="t-ico"><svg class="oi-ic lg"><use href="#i-volume"/></svg></span><span class="t-name">Sound</span><span class="t-state" id="spkState">Speakers</span></button>
+            <button class="tile" id="micTile"><span class="t-ico"><svg class="oi-ic lg"><use href="#i-mic"/></svg></span><span class="t-name">Mic</span><span class="t-state" id="micState">On</span></button>
+          </div>
+        </div>
+        <div class="powerrow"><button class="btn" data-powermode="saver"><svg class="oi-ic"><use href="#i-battery"/></svg> Battery</button><button class="btn" data-powermode="balanced">Balanced</button><button class="btn" data-powermode="performance"><svg class="oi-ic"><use href="#i-zap"/></svg> Performance</button></div>
+      </div>
+
+      <div class="panel" id="panel-clipboard">
+        <div class="row"><b>Clipboard history</b><span class="muted small">persisted; encrypted on Windows (safeStorage)</span><span style="flex:1"></span><button class="btn" id="clipClear">Clear all</button></div>
+        <div id="clipList" style="margin-top:6px"></div>
+      </div>
+
+      <div class="panel" id="panel-files">
+        <div id="dropzone">Drop files here to add them to the shelf.<br><span class="small">Drag a shelf file back out to any app. Send to Phone via QR — no account.</span></div>
+        <div class="row"><button class="btn" id="shareQrBtn"><svg class="oi-ic"><use href="#i-smartphone"/></svg> Send to Phone (QR)</button><span class="muted small" id="shareUrl"></span></div>
+        <div id="qrBox" style="display:none;margin:8px 0;text-align:center"><img id="qrImg" style="border-radius:12px;background:#fff;padding:6px"><div class="small muted" id="qrUrl"></div></div>
+        <div id="shelfList"></div>
+      </div>
+
+      <div class="panel" id="panel-reminders">
+        <div class="row"><input id="remText" placeholder="Remind me to…" style="flex:1"><input id="remSecs" type="number" value="300" min="5" style="width:80px"><span class="small muted">sec</span><button class="btn accent" id="remAdd">Add</button></div>
+        <div class="muted small">Reminders pop up over everything — including fullscreen games.</div>
+        <div id="remList" style="margin-top:6px"></div>
+      </div>
+
+      <div class="panel" id="panel-calls">
+        <div class="row"><b>Microphone</b><span class="muted small" id="micStateText">Checking…</span><span style="flex:1"></span><button class="switch" id="micSw" title="Ctrl+Alt+M"></button></div>
+        <div class="muted small" id="micHint">Ctrl+Alt+M mutes the mic in Windows itself (all apps at once). While any app uses the mic, a call timer shows on the island.</div>
+        <div class="row" style="margin-top:8px"><label class="small muted">Speaker <select id="spkSel"><option>Default speaker</option></select></label><label class="small muted">Mic <select id="micSel"><option>Default microphone</option></select></label></div>
+        <div class="card" style="margin-top:8px"><b>Camera mirror</b> <span class="muted small">— camera turns on ONLY when Preview is pressed, released when this tab closes.</span>
+          <div class="row" style="margin-top:6px"><button class="btn" id="camPreviewBtn"><svg class="oi-ic"><use href="#i-camera"/></svg> Preview camera</button><button class="btn" id="camStopBtn">Stop</button></div>
+          <video id="camVideo" width="100%" style="display:none;border-radius:10px;margin-top:8px" autoplay muted playsinline></video></div>
+      </div>
+
+      <div class="panel" id="panel-gaming">
+        <div class="section-label">System strip</div>
+        <div class="toggle"><span>Show system strip <span class="muted small">CPU / RAM / GPU / FPS</span></span><button class="switch on" id="stripSw"></button></div>
+        <div class="toggle"><span>Strip position</span><select id="stripPos"><option value="top-left">Top left</option><option value="top-right">Top right</option></select></div>
+        <div class="toggle"><span>Game strip mode</span><select id="gameMode"><option value="strip">Slim strip (FPS/CPU/GPU/RAM)</option><option value="hide">Hide island in games</option><option value="nothing">Do nothing</option></select></div>
+        <div class="toggle"><span>Slim strip under maximized windows</span><button class="switch" id="slimStripSw" title="When a window is maximized, hide the island and show only the slim strip"></button></div>
+        <div class="card" style="margin-top:8px"><b>Live strip preview</b><div class="row small" style="margin-top:6px"><span>CPU <b id="gCpu">—</b></span><span>RAM <b id="gRam">—</b></span><span>GPU <b id="gGpu">—</b></span><span>FPS <b id="gFps">—</b></span></div>
+        <div class="muted small" id="fpsNote2">FPS comes from Windows' own frame events (nothing injected into the game) and needs a one-time permission below. Borderless / windowed fullscreen only — exclusive fullscreen cannot be drawn over.</div>
+        <div id="fpsConsentBox" style="display:none;margin-top:8px"><span class="small">Allow OpenIsland to measure FPS from the Windows compositor?</span>
+          <div class="row" style="margin-top:6px"><button class="btn accent" id="fpsAllow">Allow</button><button class="btn" id="fpsDeny">Don't allow</button></div></div></div>
+        <div class="card"><b>Per-app rules</b><div class="muted small">Show / hide / step-aside per game or app — set in Settings → Island. The foreground app is watched and its rule applied.</div></div>
+      </div>
+
+      <div class="panel" id="panel-deck">
+        <div class="toggle"><span>PC Deck (phone controller)</span><button class="switch" id="deckSw"></button></div>
+        <div class="muted small">OFF by default. Phone on the same Wi-Fi scans a QR code and gets a trackpad, music controls, apps and game/slide/movie modes in its browser — no phone app needed. Allow each phone yourself.</div>
+        <div id="deckQrBox" style="display:none;margin:8px 0;text-align:center"><img id="deckQrImg" style="border-radius:12px;background:#fff;padding:6px"><div class="small muted" id="deckQrUrl"></div></div>
+        <div class="row" style="margin-top:8px"><button class="btn" id="deckQrBtn">Show Deck QR</button></div>
+      </div>
+
+      <div class="panel" id="panel-stream">
+        <div class="toggle"><span>Streaming drawer</span><button class="switch" id="streamSw"></button></div>
+        <div class="row" style="margin-top:6px"><input id="twitchCh" placeholder="Twitch channel" style="flex:1"><button class="btn" id="twitchOpen">Open chat</button></div>
+        <div class="row" style="margin-top:6px"><input id="ytUrl" placeholder="YouTube live URL" style="flex:1"><button class="btn" id="ytOpen">Open chat</button></div>
+        <div class="card" style="margin-top:8px"><b>OBS</b> <span class="muted small">via OBS Studio's own WebSocket server (off by default)</span>
+          <div id="obsBox" style="margin-top:6px">Not connected — enable in Settings → Streaming.</div>
+          <div class="row" style="margin-top:6px"><button class="btn" id="obsRecBtn"><svg class="oi-ic"><use href="#i-record"/></svg> Start recording</button><button class="btn" id="obsStreamBtn"><svg class="oi-ic"><use href="#i-radio"/></svg> Start stream</button><button class="btn" id="obsRetryBtn">Reconnect</button></div></div>
+        <div class="card"><b>Render-folder watch</b><div class="small muted" id="renderBox">Set a render folder in Settings → Streaming. The pill then shows export size / speed / time and tells you when it's done.</div></div>
+      </div>
+
+      <div class="panel" id="panel-web">
+        <div class="section-label">Web drawer — pinned sites</div>
+        <div class="row"><input id="webName" placeholder="Name" style="width:120px"><input id="webUrl" placeholder="https://…" style="flex:1"><button class="btn accent" id="webAdd">Add</button></div>
+        <div class="muted small" style="margin-top:6px">Sites open in your default browser (a webview inside the tiny island window is fragile — the browser is the reliable option).</div>
+        <div id="webList" style="margin-top:8px"></div>
+      </div>
+
+      <div class="panel" id="panel-notifications">
+        <div class="section-label">Notifications</div>
+        <div id="notifWinBox" class="card"><b>Windows notifications</b><div class="small muted" id="notifWinState" style="margin-top:4px">Checking…</div>
+          <div class="row" style="margin-top:6px"><button class="btn" id="notifReqBtn">Ask Windows for notification access</button></div>
+          <div id="notifWinList" style="margin-top:6px"></div></div>
+        <div class="card"><b>OpenIsland notifications</b><div class="small muted">Reminders, snips, recordings and app notices — all on this PC.</div><div id="notifAppList" style="margin-top:6px"></div></div>
+      </div>
+    </div>
+  </div>
+  <div id="toast"></div>
+</div>
+<script src="app.js"></script>
+</body></html>

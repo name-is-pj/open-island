@@ -1,0 +1,52 @@
+{
+  "name": "openisland",
+  "version": "1.0.0",
+  "description": "OpenIsland — a free, open Dynamic Island / notch for Windows 10/11. No account, no ads, no telemetry.",
+  "main": "src/main.js",
+  "author": "OpenIsland contributors",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --dir",
+    "icon:exe": "node scripts/apply-exe-icon.js",
+    "pack": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8",
+    "resedit": "^3.0.0"
+  },
+  "dependencies": {
+    "obs-websocket-js": "^5.0.8",
+    "qrcode": "1.5.4"
+  },
+  "build": {
+    "appId": "com.openisland.app",
+    "productName": "OpenIsland",
+    "asar": true,
+    "asarUnpack": [
+      "src/helpers/win/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "cli.js",
+      "README.md"
+    ]
+  }
+}

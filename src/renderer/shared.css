@@ -1,0 +1,27 @@
+/* OpenIsland shared base — v3.0.0. Linked FIRST by every renderer page
+   (index, settings, dock, strip, widgets, popups) so the whole app shares
+   one font and one icon language. Per-page CSS comes after and may override. */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('../../assets/fonts/Inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('../../assets/fonts/Inter-500.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('../../assets/fonts/Inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('../../assets/fonts/Inter-700.woff2') format('woff2'); }
+
+html { font-family: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif; }
+body { font-family: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+/* Numeric readouts (times, percentages, stats) use tabular figures so they
+   never jitter as values change. */
+.tnum, .clock, time { font-variant-numeric: tabular-nums; }
+
+/* Shared icon sizing: icons are currentColor SVGs from icons.js. */
+.oi-ic { width: 1.15em; height: 1.15em; vertical-align: -0.18em; flex-shrink: 0; }
+.oi-ic.lg { width: 1.5em; height: 1.5em; }
+.oi-ic.sm { width: 0.95em; height: 0.95em; }
+
+/* Clean transport buttons (reference): bare white icons on the dark card —
+   NO pill background, NO purple circle, NO border. Hover gets a faint wash. */
+.tbtn { background: transparent; border: 0; padding: 6px; margin: 0; border-radius: 999px; color: #fff; cursor: pointer; line-height: 0; display: inline-flex; align-items: center; justify-content: center; }
+.tbtn:hover { background: rgba(255,255,255,.12); }
+.tbtn:active { transform: scale(.94); }
+.tbtn .oi-ic { width: 20px; height: 20px; }
+.tbtn.main .oi-ic { width: 24px; height: 24px; }

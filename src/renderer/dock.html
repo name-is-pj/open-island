@@ -1,0 +1,173 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css"><link rel="stylesheet" href="styles.css"><style>
+/* Item 13 — Inter everywhere (styles.css sets font-family on *, which beats
+   inheritance from body, so re-assert Inter here, after both stylesheets). */
+*{font-family:"Inter","Segoe UI",system-ui,sans-serif}
+html,body{ background:transparent; }
+body{ margin:0; display:flex; align-items:center; justify-content:center; height:100vh; font-size:12px; }
+#dock{ display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
+  background:var(--pill); background-image:var(--pill-grad);
+  backdrop-filter:var(--blur); -webkit-backdrop-filter:var(--blur);
+  border:1px solid var(--border); box-shadow:var(--shadow), inset 0 1px 0 var(--hl); }
+button{ background:transparent; border:0; color:var(--fg); cursor:pointer; border-radius:10px; padding:6px; font-size:15px; line-height:1; }
+button:hover{ background:rgba(255,255,255,.10); }
+/* Item 13 — dock transport button is .tbtn (clean icon, no pill background);
+   coloured with the theme foreground so it stays readable on light themes. */
+.tbtn{color:var(--fg)}
+.app{ position:relative; display:flex; flex-direction:column; align-items:center; padding:6px 8px; border-radius:10px; cursor:pointer; }
+.app:hover{ background:rgba(255,255,255,.10); }
+/* Item 10 — real app icons are <img> thumbnails from dock-list; the generic
+   SVG fallback (OIIcons 'grid') lives in the same slot. Never an emoji. */
+.app .ic{ width:22px; height:22px; display:flex; align-items:center; justify-content:center; color:var(--fg); }
+.app .ic img{ width:22px; height:22px; border-radius:6px; object-fit:contain; }
+.app .ic .oi-ic{ width:20px; height:20px; }
+.app .nm{ font-size:9px; color:var(--muted); max-width:52px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.app .dot{ position:absolute; bottom:2px; width:4px; height:4px; border-radius:50%; background:var(--accent); }
+.app.minimizing .ic{ animation:minIntoDock .45s cubic-bezier(.5,-0.4,.3,1.4) forwards; }
+.app.restoring .ic{ animation:backFromDock .45s cubic-bezier(.22,1.25,.36,1) forwards; }
+@keyframes minIntoDock{ 0%{ transform:scale(1); opacity:1; } 60%{ transform:scale(.25) translateY(14px); opacity:.7; } 100%{ transform:scale(.2) translateY(18px); opacity:0; } }
+@keyframes backFromDock{ 0%{ transform:scale(.2) translateY(18px); opacity:0; } 100%{ transform:scale(1) translateY(0); opacity:1; } }
+.sep{ width:1px; height:34px; background:var(--border); margin:0 4px; }
+#nowPlaying{ display:flex; align-items:center; gap:8px; max-width:220px; padding:4px 8px; border-radius:10px; cursor:pointer; }
+#nowPlaying:hover{ background:rgba(255,255,255,.08); }
+/* Item 28 — now-playing album art thumbnail (from the active session). */
+#nowPlaying .np-art{ width:30px; height:30px; border-radius:8px; object-fit:cover; flex-shrink:0; box-shadow:0 2px 8px rgba(0,0,0,.35); }
+#nowPlaying .np-art-fallback{ width:30px; height:30px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:#1a0508; border:1px solid rgba(255,255,255,.12); color:var(--fg); } /* v1.0.0: dark tile, never the purple gradient — the pill's own now-playing card shows the track's real art, never a purple placeholder */
+#nowPlaying .np-art-fallback .oi-ic{ width:16px; height:16px; }
+#nowPlaying .np-t{ font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px; }
+#nowPlaying .np-a{ font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px; }
+#tray{ display:flex; align-items:center; gap:8px; padding:4px 6px; font-size:11px; color:var(--muted); }
+#tray span{ cursor:default; display:inline-flex; align-items:center; gap:4px; }
+#tray .oi-ic{ width:14px; height:14px; }
+#clock{ text-align:right; line-height:1.25; cursor:pointer; padding:4px 6px; border-radius:10px; }
+#clock:hover{ background:rgba(255,255,255,.08); }
+#clock .t{ font-size:12px; font-weight:600; }
+#clock .d{ font-size:10px; color:var(--muted); }
+</style></head><body>
+<script src="icons.js"></script>
+<div id="dock">
+  <button id="start" title="Start"><svg class="oi-ic" aria-hidden="true"><use href="#i-grid"/></svg></button>
+  <div class="sep"></div>
+  <div id="apps" style="display:flex; align-items:center; gap:2px;"></div>
+  <div class="sep"></div>
+  <div id="nowPlaying" title="Now playing — click for Music"><img id="npArt" class="np-art" alt="" style="display:none"><span id="npArtFallback" class="np-art-fallback"><svg class="oi-ic" aria-hidden="true"><use href="#i-music"/></svg></span><div><div class="np-t" id="npTitle">Nothing playing</div><div class="np-a" id="npArtist"></div></div><button id="npToggle" class="tbtn" title="Play/Pause"></button></div>
+  <div class="sep"></div>
+  <button id="trayChevron" title="Tray icons — choose which icons show"><svg class="oi-ic" aria-hidden="true"><use href="#i-chevron-up"/></svg></button>
+  <div id="tray" title="System status — right-click for tray icon settings"></div>
+  <div class="sep"></div>
+  <div id="clock" title="Calendar"><div class="t" id="clkT"></div><div class="d" id="clkD"></div></div>
+  <button id="bell" title="Notifications"><svg class="oi-ic" aria-hidden="true"><use href="#i-bell"/></svg></button>
+  <button id="desk" title="Show desktop" style="width:6px; padding:6px 2px; border-left:1px solid var(--border); border-radius:0 10px 10px 0;"> </button>
+</div>
+<script>
+const appsEl = document.getElementById('apps');
+let fgHwnd = null;
+let dockSettings = null;
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// Item 23 — the dock follows the selected theme (same variables as Settings),
+// so light themes get dark text on the light pill and dark themes get light.
+function applyDockTheme() {
+  if (dockSettings && dockSettings.appearance && dockSettings.appearance.theme) {
+    document.documentElement.dataset.theme = dockSettings.appearance.theme;
+  }
+}
+window.openisland.getSettings().then(s => { dockSettings = s; applyDockTheme(); });
+window.openisland.on('settings-updated', (s) => { dockSettings = s; applyDockTheme(); });
+// Item 10 — dock-list (new shape): { pinned:[{name,path,icon}],
+// running:[{hwnd,title,exe,icon}], foregroundHwnd } where icon is a
+// data:image/png;base64 thumbnail or ''. A real <img> is rendered for a
+// real icon; '' falls back to the generic grid SVG. No default extra apps —
+// the list comes entirely from the real taskbar data. Old shapes (no icon,
+// running entries with `process` instead of `exe`) still render via fallback.
+function appIconHtml(icon) {
+  return icon ? `<img src="${esc(icon)}" alt="">` : window.OIIcons.icon('grid');
+}
+function exeOfPath(p) { return (p || '').split('\\').pop().toLowerCase(); }
+async function refresh() {
+  const d = await window.openisland.dockList();
+  fgHwnd = d.foregroundHwnd || null;
+  const running = {};
+  (d.running || []).forEach(w => { running[((w.exe || w.process || '')).toLowerCase()] = w; });
+  let html = '';
+  for (const p of (d.pinned || [])) {
+    const run = running[exeOfPath(p.path)];
+    html += `<div class="app" data-path="${esc(p.path)}" data-hwnd="${run ? run.hwnd : ''}" title="${esc(p.name)}${run ? ' (running — click to focus, double-click to minimise)' : ''}"><span class="ic">${appIconHtml(p.icon)}</span><span class="nm">${esc(p.name)}</span>${run ? '<span class="dot"></span>' : ''}</div>`;
+  }
+  for (const w of (d.running || [])) {
+    const exe = (w.exe || w.process || '').toLowerCase();
+    const pinned = (d.pinned || []).some(p => exeOfPath(p.path) === exe);
+    if (!pinned) html += `<div class="app" data-hwnd="${w.hwnd}" data-path="" title="${esc(w.title || w.exe || 'app')} (running)"><span class="ic">${appIconHtml(w.icon)}</span><span class="nm">${esc(w.exe || w.process || 'app')}</span><span class="dot"></span></div>`;
+  }
+  appsEl.innerHTML = html;
+  appsEl.querySelectorAll('.app').forEach(el => {
+    el.addEventListener('click', async () => {
+      const hwnd = el.dataset.hwnd;
+      if (hwnd) {
+        if (fgHwnd && String(fgHwnd) === String(hwnd)) { // already focused: minimise with the Mac-style animation
+          el.classList.add('minimizing');
+          await window.openisland.dockAction('minimize', Number(hwnd));
+          setTimeout(() => el.classList.remove('minimizing'), 500);
+        } else { el.classList.add('restoring'); await window.openisland.dockAction('focus', Number(hwnd)); setTimeout(() => el.classList.remove('restoring'), 500); }
+      } else if (el.dataset.path) { await window.openisland.dockAction('launch', el.dataset.path); }
+    });
+  });
+  // Now playing (real SMTC state, same source as the Music tab).
+  // Item 28 — album-art thumbnail + pause button, like the reference taskbar.
+  try {
+    const m = await window.openisland.getMedia();
+    const s = m.sessions && m.sessions[m.activeIndex || 0];
+    document.getElementById('npTitle').textContent = s ? s.title : 'Nothing playing';
+    document.getElementById('npArtist').textContent = s ? ((s.artist || '') + (s.app ? ' · ' + s.app : '')) : '';
+    const art = document.getElementById('npArt');
+    const fb = document.getElementById('npArtFallback');
+    if (s && s.artwork) { art.src = s.artwork; art.style.display = ''; fb.style.display = 'none'; }
+    else { art.style.display = 'none'; fb.style.display = ''; }
+    document.getElementById('npToggle').innerHTML = window.OIIcons.icon(s && s.status === 'playing' ? 'pause' : 'play');
+  } catch { /* keep previous */ }
+  // Tray status icons (live system state — Windows does not expose other
+  // apps' tray icons to a desktop app, so the dock shows these instead).
+  // "Show every tray icon" off = volume only.
+  // v5.0.0 (item D2): the tray must ALWAYS show something — Start, clock
+  // and the tray-status icons are always visible even with zero pinned or
+  // running apps. A volume level that cannot be read still shows the volume
+  // icon (no number — never a fake value, never a placeholder dash), and
+  // Wi-Fi state joins the tray when known.
+  try {
+    const [vol, pow, wifi] = await Promise.all([
+      window.openisland.winControl('volume-get').catch(() => ({ level: null })),
+      window.openisland.getPower().catch(() => ({ ok: false })),
+      window.openisland.winControl('wifi-get').catch(() => null),
+    ]);
+    const showAll = dockSettings?.taskbar?.showAllTrayIcons !== false;
+    const parts = [];
+    if (vol && vol.level != null) parts.push(`<span>${window.OIIcons.icon(vol.level === 0 ? 'volume-x' : 'volume')} ${vol.level}%</span>`);
+    else parts.push(`<span title="Volume - level unavailable">${window.OIIcons.icon('volume')}</span>`);
+    if (showAll) {
+      if (wifi && wifi.ok) parts.push(`<span title="Wi-Fi ${wifi.on ? 'on' : 'off'}">${window.OIIcons.icon(wifi.on ? 'wifi' : 'wifi-off')}</span>`);
+      if (pow && pow.ok) parts.push(pow.acOnline ? `<span>${window.OIIcons.icon('zap')}</span>` : `<span>${window.OIIcons.icon('battery')} ${pow.batteryPct != null ? pow.batteryPct + '%' : ''}</span>`);
+      if (pow && pow.saverOn) parts.push(`<span>${window.OIIcons.icon('battery')} saver</span>`);
+    }
+    document.getElementById('tray').innerHTML = parts.join('');
+  } catch { /* keep previous */ }
+  // Clock.
+  const now = new Date();
+  document.getElementById('clkT').textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  document.getElementById('clkD').textContent = now.toLocaleDateString([], { month: 'numeric', day: 'numeric', year: 'numeric' });
+}
+document.getElementById('npToggle').innerHTML = window.OIIcons.icon('play');
+document.getElementById('start').addEventListener('click', () => window.openisland.dockAction('start-menu'));
+// v1.0.0 (§7): chevron before the tray — Windows does not expose other
+// apps' tray icons to a desktop app, so there are no hidden icons to expand;
+// the chevron opens the tray settings page where the user chooses which
+// icons show (same as right-clicking the tray).
+document.getElementById('trayChevron').addEventListener('click', () => window.openisland.dockAction('open-tray-settings'));
+document.getElementById('desk').addEventListener('click', () => window.openisland.dockAction('show-desktop'));
+document.getElementById('tray').addEventListener('contextmenu', (e) => { e.preventDefault(); window.openisland.dockAction('open-tray-settings'); });
+document.getElementById('npToggle').addEventListener('click', (e) => { e.stopPropagation(); window.openisland.mediaCommand('toggle'); });
+document.getElementById('nowPlaying').addEventListener('click', () => window.openisland.openIslandTab('music'));
+document.getElementById('bell').addEventListener('click', () => window.openisland.openIslandTab('notifications'));
+document.getElementById('clock').addEventListener('click', () => window.openisland.openIslandTab('widgets'));
+window.openisland.on('dock-updated', (d) => { if (d && d.foregroundHwnd != null) fgHwnd = d.foregroundHwnd; refresh(); });
+refresh();
+setInterval(refresh, 3000);
+</script></body></html>

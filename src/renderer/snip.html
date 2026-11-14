@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body{ margin:0; height:100%; background:rgba(0,0,0,.25); cursor:crosshair; overflow:hidden; }
+#hint{ position:fixed; top:16px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.75); color:#fff; padding:8px 16px; border-radius:999px; font:13px system-ui; }
+#sel{ position:fixed; border:2px solid #7c5cff; background:rgba(124,92,255,.12); display:none; }
+#dim{ position:fixed; inset:0; pointer-events:none; }
+</style></head><body>
+<div id="hint">Drag a region to snip it — Esc to cancel</div>
+<div id="sel"></div>
+<script>
+let start = null;
+const sel = document.getElementById('sel');
+document.addEventListener('mousedown', (e) => { start = { x: e.clientX, y: e.clientY }; sel.style.display = 'block'; });
+document.addEventListener('mousemove', (e) => {
+  if (!start) return;
+  const x = Math.min(start.x, e.clientX), y = Math.min(start.y, e.clientY);
+  const w = Math.abs(e.clientX - start.x), h = Math.abs(e.clientY - start.y);
+  Object.assign(sel.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+});
+document.addEventListener('mouseup', (e) => {
+  if (!start) return;
+  const x = Math.min(start.x, e.clientX), y = Math.min(start.y, e.clientY);
+  const w = Math.abs(e.clientX - start.x), h = Math.abs(e.clientY - start.y);
+  start = null;
+  if (w > 4 && h > 4) window.openisland.snipRegion({ x, y, width: w, height: h });
+  else window.openisland.snipCancel();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.openisland.snipCancel(); });
+</script></body></html>

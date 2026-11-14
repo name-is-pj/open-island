@@ -1,0 +1,58 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body{ margin:0; height:100%; background:#000; overflow:hidden; }
+#vid{ position:fixed; inset:0; width:100%; height:100%; object-fit:cover; }
+#cv{ position:fixed; inset:0; width:100%; height:100%; display:none; }
+#msg{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; color:#888; font:13px system-ui; }
+</style></head><body>
+<video id="vid" muted loop autoplay playsinline></video>
+<canvas id="cv"></canvas>
+<div id="msg"></div>
+<script>
+// Live wallpaper page: a <video> element, presented through a canvas when a
+// frame-rate cap or a quality scale is set (the canvas backing store is
+// scaled, so compositing is cheaper; the video still decodes at source
+// resolution). At 60fps + High quality the <video> shows directly (zero
+// overhead path). Pause/resume comes from main (fullscreen / battery / saver).
+const q = new URLSearchParams(location.search);
+const vid = document.getElementById('vid');
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const msg = document.getElementById('msg');
+let quality = q.get('quality') || 'balanced';
+let fps = parseInt(q.get('fps') || '30', 10) || 30;
+let paused = false;
+let lastDraw = 0;
+let useCanvas = false;
+const SCALE = { high: 1, balanced: 0.75, low: 0.5 };
+function applyMode() {
+  useCanvas = fps < 60 || quality !== 'high';
+  vid.style.display = useCanvas ? 'none' : 'block';
+  cv.style.display = useCanvas ? 'block' : 'none';
+  if (useCanvas) {
+    cv.width = Math.round(innerWidth * (SCALE[quality] || 0.75));
+    cv.height = Math.round(innerHeight * (SCALE[quality] || 0.75));
+  }
+}
+function loadFile(file) {
+  if (!file) { msg.textContent = 'No live wallpaper file set.'; return; }
+  msg.textContent = '';
+  vid.src = 'file:///' + file.replace(/\\/g, '/');
+  vid.play().catch(() => { msg.textContent = 'Could not play this video file.'; });
+}
+function frame(now) {
+  if (!paused && useCanvas && vid.readyState >= 2) {
+    if (now - lastDraw >= 1000 / fps) { lastDraw = now; ctx.drawImage(vid, 0, 0, cv.width, cv.height); }
+  }
+  requestAnimationFrame(frame);
+}
+vid.addEventListener('play', () => { if (useCanvas) requestAnimationFrame(frame); });
+window.openisland.on('wallpaper-settings', (s) => {
+  if (s.file) { quality = s.quality || quality; fps = s.fps || fps; applyMode(); loadFile(s.file); }
+});
+window.openisland.on('wallpaper-pause', () => { paused = true; vid.pause(); });
+window.openisland.on('wallpaper-play', () => { paused = false; vid.play().catch(() => {}); });
+applyMode();
+loadFile(q.get('file'));
+requestAnimationFrame(frame);
+</script></body></html>

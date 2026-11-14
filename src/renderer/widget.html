@@ -1,0 +1,70 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="styles.css"><style>
+/* Item 24(a): desktop widgets restyled to the video look — big day name +
+   date for the clock, temperature + condition for weather, glass styling,
+   accent colour from settings.widgets.accent (default '#ffffff'). */
+body{ -webkit-app-region:drag; }
+#w{ padding:18px 22px; background:var(--bg); background-image:var(--bg-grad); backdrop-filter:var(--blur); -webkit-backdrop-filter:var(--blur); border:1px solid var(--border); border-radius:24px; height:100vh; box-shadow:var(--shadow), inset 0 1px 0 var(--hl); overflow:hidden; }
+.day{ font-size:20px; font-weight:700; letter-spacing:3px; color:var(--accent); text-transform:uppercase; }
+.big{ font-size:42px; font-weight:600; line-height:1.1; letter-spacing:-.5px; }
+.date{ font-size:15px; color:var(--muted); margin-top:2px; }
+.cond{ font-size:15px; color:var(--fg); margin-top:2px; }
+.hl{ font-size:13px; color:var(--muted); margin-top:4px; }
+.stat{ display:flex; align-items:baseline; gap:8px; font-size:15px; padding:3px 0; }
+.stat b{ font-size:20px; font-weight:600; }
+.stat .bar{ flex:1; height:6px; border-radius:99px; background:rgba(255,255,255,.12); overflow:hidden; }
+.stat .bar i{ display:block; height:100%; border-radius:99px; background:#fff; }
+/* v1.0.0 (§4): stats bars are CPU white, GPU purple, RAM orange — same as the island Widgets panel. */
+.stat .bar i.bar-gpu{ background:#8b7cff; }
+.stat .bar i.bar-ram{ background:#ff9f43; }
+</style></head><body>
+<div id="w"><div id="content">Loading…</div></div>
+<script>
+const $ = s => document.querySelector(s);
+const kind = new URLSearchParams(location.search).get('kind') || 'clock';
+// Accent + theme from settings (widgets.accent, default '#ffffff').
+async function applyWidgetSettings() {
+  try {
+    const s = await window.openisland.getSettings();
+    if (s?.appearance?.theme) document.documentElement.dataset.theme = s.appearance.theme;
+    const accent = s?.widgets?.accent || s?.appearance?.accent || '#ffffff';
+    document.documentElement.style.setProperty('--accent', accent);
+    if (s?.appearance) document.documentElement.style.setProperty('--surface', String(s.appearance.surface ?? 100));
+  } catch { /* defaults from styles.css stand */ }
+}
+applyWidgetSettings();
+window.openisland.on('settings-updated', (ns) => {
+  if (ns?.appearance?.theme) document.documentElement.dataset.theme = ns.appearance.theme;
+  const accent = ns?.widgets?.accent || ns?.appearance?.accent;
+  if (accent) document.documentElement.style.setProperty('--accent', accent);
+});
+function tick(){
+  const now = new Date();
+  if (kind === 'clock') {
+    // Video look: big day name ("THURSDAY") + date, time large below it.
+    $('#content').innerHTML = `<div class="day">${now.toLocaleDateString([], { weekday: 'long' })}</div><div class="big">${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div><div class="date">${now.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' })}</div>`;
+  }
+}
+// Open-Meteo WMO weather codes -> plain condition words (same map as app.js).
+const WEATHER_TEXT = { 0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Light showers', 81: 'Showers', 82: 'Heavy showers', 95: 'Thunderstorm', 96: 'Thunderstorm', 99: 'Thunderstorm' };
+async function weather(){
+  const r = await window.openisland.weather();
+  if (!r.ok) { $('#content').innerHTML = `<div class="big">—</div><div class="cond">Weather unavailable</div>`; return; } // v1.0.0 (§4): one-word state, never a full error sentence
+  const d = r.data || {};
+  const cond = WEATHER_TEXT[d.weather_code] || ('Code ' + d.weather_code);
+  const hi = r.daily?.max, lo = r.daily?.min;
+  $('#content').innerHTML = `<div class="big">${Math.round(d.temperature_2m)}°</div><div class="cond">${cond}</div><div class="hl">${hi != null && lo != null ? `H ${Math.round(hi)}° · L ${Math.round(lo)}° · ` : ''}Humidity ${d.relative_humidity_2m}% · Wind ${d.wind_speed_10m} km/h</div>`;
+}
+if (kind === 'clock') { tick(); setInterval(tick, 1000); }
+if (kind === 'weather') { weather(); setInterval(weather, 10 * 60 * 1000); }
+if (kind === 'stats') {
+  const renderStats = (s) => {
+    const cpu = s.cpu ?? null, gpu = s.gpu?.load ?? null, ram = s.mem?.usedPct ?? null;
+    const row = (label, v, cls) => `<div class="stat"><span style="width:38px;color:var(--muted)">${label}</span><b>${v == null ? '—' : v + '%'}</b><span class="bar"><i class="${cls}" style="width:${v == null ? 0 : Math.min(100, v)}%"></i></span></div>`;
+    $('#content').innerHTML = row('CPU', cpu, 'bar-cpu') + row('GPU', gpu, 'bar-gpu') + row('RAM', ram, 'bar-ram');
+  };
+  window.openisland.on('stats-updated', renderStats);
+  window.openisland.getStats().then(renderStats).catch(() => {});
+  $('#content').innerHTML = `<div class="date">Waiting for stats…</div>`;
+}
+</script></body></html>

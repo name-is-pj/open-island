@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css"><link rel="stylesheet" href="styles.css"><style>
+html,body{ background:transparent; }
+body{ background-color:color-mix(in srgb, var(--pill) calc(var(--surface,100)*1%), transparent); background-image:var(--pill-grad); backdrop-filter:var(--blur); -webkit-backdrop-filter:var(--blur); border:1px solid var(--border); border-radius:999px; box-shadow:var(--shadow), inset 0 1px 0 var(--hl); }
+#s{ display:flex; gap:10px; align-items:center; padding:3px 12px; font-size:12px; font-weight:600; white-space:nowrap; }
+#s .oi-ic{ width:14px; height:14px; }
+#s b{ color:var(--fg); } .muted{ color:var(--muted); font-weight:400; }
+/* Item 22 (v3.0.1): a small visible × on the strip itself, shown on hover —
+   the hide-strip action must be discoverable without knowing the right-click
+   menu exists. Always occupies its slot (opacity 0 when idle) so the stats
+   never shift when it appears. */
+#stripHide{ display:flex; align-items:center; justify-content:center; width:16px; height:16px; margin-left:auto; border:0; border-radius:50%; background:rgba(127,127,127,.25); color:var(--fg); cursor:pointer; opacity:0; transition:opacity .15s ease; padding:0; flex:0 0 auto; }
+#stripHide .oi-ic{ width:10px; height:10px; }
+#stripHide:hover{ background:rgba(127,127,127,.45); }
+body:hover #stripHide{ opacity:1; }
+</style></head><body>
+<script src="icons.js"></script>
+<div id="s"><span style="display:flex;align-items:center"><svg class="oi-ic" aria-hidden="true"><use href="#i-gamepad"/></svg></span><span>CPU <b id="c">—</b></span><span>RAM <b id="r">—</b></span><span>GPU <b id="g">—</b></span><span>FPS <b id="f">—</b></span><button id="stripHide" type="button" title="Hide strip" aria-label="Hide strip"><svg class="oi-ic" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+<script>
+function renderStats(s) {
+  if (!s) return;
+  document.getElementById('c').textContent = (s.cpu ?? '—') + '%';
+  document.getElementById('r').textContent = s.mem.usedPct + '%';
+  // GPU % is real once item 17 works (gpu.ps1 tries the 3D counter, then the
+  // broad GPU Engine counter); "—" means every counter path failed, honest.
+  document.getElementById('g').textContent = (s.gpu.load ?? '—') + (s.gpu.load != null ? '%' : '');
+  // Real FPS (v2.0.0): measured DWM composition rate, or "—" when no game
+  // is presenting / consent is off — never a fake number.
+  document.getElementById('f').textContent = s.fps == null ? '—' : Math.round(s.fps) + ' fps';
+}
+window.openisland.on('stats-updated', renderStats);
+window.openisland.on('settings-updated', (ns) => {
+  if (ns && ns.appearance) document.documentElement.style.setProperty('--surface', String(ns.appearance.surface ?? 100));
+});
+// Populate immediately instead of waiting for the next 2s stats push.
+window.openisland.getStats().then(renderStats).catch(() => {});
+// Item 22 — strip discoverability: right-clicking the strip itself offers
+// "Hide strip" (main destroys the strip window entirely) and "Strip
+// settings". (The strip window receives mouse events for exactly this —
+// see createGameStrip in main.js.) v3.0.1: a visible × appears on the strip
+// on hover — clicking it hides the strip the same way, no menu needed.
+document.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  window.openisland.stripMenu();
+});
+document.getElementById('stripHide').addEventListener('click', () => {
+  window.openisland.hideStrip();
+});
+</script></body></html>

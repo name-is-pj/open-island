@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css"><link rel="stylesheet" href="styles.css"><style>
+/* v1.0.0 (§7): transient now-playing chip above the taskbar — "Title – Artist",
+   shown briefly on track change, then hidden by main. */
+html,body{ background:transparent; }
+#chip{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px; background:rgba(20,4,9,.95); border:1px solid var(--border); border-radius:999px; box-shadow:var(--shadow); padding:0 18px; overflow:hidden; }
+#chip .dot{ width:8px; height:8px; border-radius:50%; background:#ff3b30; flex-shrink:0; }
+#chipTxt{ font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style></head>
+<body>
+<div id="chip"><span class="dot"></span><span id="chipTxt"></span></div>
+<script>
+window.openisland.on('chip-show', ({ title, artist }) => {
+  document.getElementById('chipTxt').textContent = artist ? title + ' – ' + artist : title;
+});
+</script>
+</body></html>

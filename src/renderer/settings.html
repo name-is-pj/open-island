@@ -1,0 +1,709 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>OpenIsland Settings</title><link rel="stylesheet" href="shared.css"><link rel="stylesheet" href="styles.css"><style>
+/* Item 13 — Inter everywhere: styles.css sets font-family on * (Segoe UI),
+   which beats inheritance from body, so re-assert Inter here (after both
+   stylesheets) for every element. */
+*{font-family:"Inter","Segoe UI",system-ui,sans-serif}
+/* Settings shares the island's glass variables and re-themes live.
+   With a Glass surface the window itself is see-through glass (image-33);
+   with a normal surface it is dark and opaque (image-34). */
+/* Item 11 — scroll fix: the window is a fixed-height flex row; the sidebar
+   and the content column each own their own scroll. Previously body was
+   min-height:100vh with no fixed height, so #main grew with its content and
+   its overflow-y:auto never engaged — the bottom of long sections (Taskbar)
+   was clipped and unreachable (image-57). */
+html,body{height:100%;overflow:hidden}
+body{font-family:"Inter","Segoe UI",system-ui,sans-serif;margin:0;height:100vh;display:flex;
+  background-color:color-mix(in srgb, var(--bg) calc(var(--surface,100)*1%), transparent);
+  background-image:var(--bg-grad); backdrop-filter:var(--blur); -webkit-backdrop-filter:var(--blur); color:var(--fg)}
+#side{width:210px;flex-shrink:0;height:100vh;min-height:0;border-right:1px solid var(--border);padding:14px 10px;overflow-y:auto}
+#side input{width:100%;margin-bottom:10px}
+.side-item{display:block;width:100%;text-align:left;background:transparent;border:0;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.side-item:hover{background:rgba(255,255,255,.07);color:var(--fg)}
+.side-item.sel{background:var(--bg2);color:var(--fg);box-shadow:inset 0 0 0 1px var(--border)}
+#main{flex:1;min-width:0;min-height:0;height:100vh;overflow-y:auto;padding:12px 24px 16px}
+#main::-webkit-scrollbar{width:6px} #main::-webkit-scrollbar-thumb{background:rgba(127,127,127,.35);border-radius:3px}
+h1{font-size:20px;font-weight:700}
+h2{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:10px 0 6px;border-bottom:1px solid var(--border);padding-bottom:6px}
+section{display:none} section.on{display:block}
+label{display:block;margin:4px 0;font-size:13px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted);font-size:12px}
+textarea{background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:10px;padding:7px 9px;font-size:13px;color:var(--fg)}
+/* v1.0.0 (§6): Surface is NAMED buttons, not swatches — the selected one
+   is white-filled with dark text, like the reference (Glass selected).
+   The old .swatch rules stay for the border-wallpaper presets. */
+#themeSwatches{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+.surf-btn{background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:7px 16px;font-size:12.5px;font-weight:600;color:var(--fg);cursor:pointer;font-family:inherit}
+.surf-btn:hover{border-color:rgba(255,255,255,.4)}
+.surf-btn.sel{background:#fff;color:#1c1c1e;border-color:#fff}
+.swatch{width:104px;border:1px solid var(--border);border-radius:14px;padding:0;overflow:hidden;cursor:pointer;background:transparent}
+.swatch .prev{height:44px}
+.swatch .nm{font-size:11px;font-weight:600;padding:6px 8px;text-align:left;color:var(--fg);background:var(--pill)}
+.swatch.sel{outline:2px solid var(--accent);outline-offset:2px}
+/* Item 23 — theme contrast: each swatch button carries data-theme="<name>"
+   (set in buildSwatches), so the theme's OWN --fg/--muted/--pill apply to
+   its label instead of the currently-selected theme's. The label background
+   is the theme's own --pill, so every theme pairs its own text colour with
+   its own surface. Candy glass and Peach use a solid, slightly darkened pill
+   so their light text stays readable over a light page. */
+.swatch[data-theme="candy-glass"] .nm{background:#c22771}
+.swatch[data-theme="peach"] .nm{background:#a85426}
+/* Item 15 — segmented controls (Motion / Visualizer, reference f-14). */
+.seg{display:inline-flex;gap:2px;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:3px}
+.seg button{background:transparent;border:0;padding:5px 12px;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit}
+.seg button:hover{color:var(--fg)}
+.seg button.sel{background:#fff;color:#1c1c1e} /* v1.0.0: segmented actives are white-filled + dark text, never purple */
+/* Item 13/18 — preview transport buttons are .tbtn (clean icons, no pill),
+   coloured with the theme foreground so they stay readable on light themes
+   (Sakura) as well as dark ones. */
+#previewCard .tbtn{color:var(--fg)}
+#previewCard .tbtn .oi-ic{width:20px;height:20px}
+#previewCard .tbtn.main .oi-ic{width:24px;height:24px}
+/* Item 18 — demo music card: wavy red progress line (reference f-11/f-14). */
+#prevWave{display:block;width:100%;height:14px;margin:10px 0 4px}
+#prevWave path{fill:none;stroke-width:2;stroke-linecap:round}
+/* Item 12 — About contact rows. */
+.contact-row{display:flex;flex-direction:row;gap:10px;margin:12px 0}
+.contact-link{display:inline-flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;color:var(--fg);text-decoration:none;cursor:pointer;width:fit-content;max-width:100%}
+.contact-link:hover{background:rgba(255,255,255,.14)}
+.contact-link .oi-ic{width:18px;height:18px;color:var(--fg)}
+.contact-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Item J (v3.0.1): About is icons only — three small circular icon buttons
+   in a row, no visible link/email text anywhere (tooltips may show it). */
+.contact-icon{width:40px;height:40px;border-radius:50%;padding:0;justify-content:center;flex:0 0 auto}
+.contact-icon .oi-ic{width:20px;height:20px}
+/* Item 24 — Widgets "Show on desktop" rows. */
+.wrow{display:flex;align-items:center;gap:12px;padding:10px 2px;border-bottom:1px solid rgba(127,127,127,.18)}
+.wrow:last-child{border-bottom:0}
+.wrow .wname{flex:1;min-width:0}
+.wrow .wname b{font-size:13px;display:block}
+.wrow .wname span{font-size:12px;color:var(--muted)}
+#previewCard{border:1px solid var(--border);border-radius:20px;padding:12px;margin:6px 0;background:var(--bg2);box-shadow:inset 0 1px 0 var(--hl)}
+#previewCard .p-title{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#previewCard .p-art{width:54px;height:54px;border-radius:14px;object-fit:cover;flex-shrink:0}
+#previewCard .p-art-none{width:54px;height:54px;border-radius:14px;background:#1a0508;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0} /* v1.0.0: dark tile, never the purple gradient */
+#previewCard .btn.sel{background:#fff;color:#1c1c1e} /* v1.0.0: Resting/Open — the active one is white-filled, like the reference (Open selected) */
+#toastS{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--pill);border:1px solid var(--border);padding:7px 14px;border-radius:999px;font-size:12px;font-weight:600;display:none;white-space:nowrap;z-index:20}
+.favrow-set{display:flex;gap:8px;align-items:center;margin:6px 0}
+.favrow-set input{flex:1}
+</style></head><body>
+<script src="icons.js"></script>
+<div id="side">
+  <input id="search" placeholder="Search settings" type="text">
+  <div id="sideItems"></div>
+</div>
+<div id="main">
+<!-- v1.0.0 (§6): no header block — the reference Settings window opens straight on the content, and the space is needed for Appearance to fit at 680px. -->
+
+<section data-section="general">
+<h2>General</h2>
+<label><input type="checkbox" id="runAtStartup"> Run at startup</label>
+<label>Language <select id="language"><option value="en">English</option></select> <span class="muted">English only in v3.0.0 — 21 languages is a separate job if ever asked.</span></label>
+</section>
+
+<section data-section="accessibility">
+<h2>Accessibility</h2>
+<label><input type="checkbox" id="reduceMotion"> Reduce motion <span class="muted">— turns off the island's spring and equalizer animations</span></label>
+<label><input type="checkbox" id="largerText"> Larger text <span class="muted">— bumps the island's text size</span></label>
+</section>
+
+<section data-section="appearance">
+<!-- v1.0.0 (§6): no section heading — the live preview card is the top of Appearance, like the reference. -->
+<div id="previewCard">
+  <div class="row"><div id="prevArt" class="p-art-none"></div>
+    <div style="flex:1;min-width:0"><div class="p-title" id="prevTitle">Neon Harbor</div><div class="muted small" id="prevArtist">Kavi Rao</div></div>
+    <button class="tbtn" id="prevPrev" title="Previous"></button><button class="tbtn main" id="prevPlay" title="Play/Pause"></button><button class="tbtn" id="prevNext" title="Next"></button></div>
+  <svg id="prevWave" viewBox="0 0 400 14" preserveAspectRatio="none" aria-hidden="true"><defs><clipPath id="prevWClip"><rect id="prevWClipRect" x="0" y="0" width="0" height="14"/></clipPath></defs><path d="M0 7 Q 12.5 1 25 7 T 50 7 T 75 7 T 100 7 T 125 7 T 150 7 T 175 7 T 200 7 T 225 7 T 250 7 T 275 7 T 300 7 T 325 7 T 350 7 T 375 7 T 400 7" stroke="rgba(127,127,127,.45)"/><path d="M0 7 Q 12.5 1 25 7 T 50 7 T 75 7 T 100 7 T 125 7 T 150 7 T 175 7 T 200 7 T 225 7 T 250 7 T 275 7 T 300 7 T 325 7 T 350 7 T 375 7 T 400 7" stroke="#ff3b30" clip-path="url(#prevWClip)"/></svg>
+  <div class="row small muted"><span id="prevElapsed">1:06</span><span style="flex:1"></span><span id="prevRemaining">-2:27</span></div>
+  <div class="row" style="margin-top:8px"><button class="btn" id="prevResting">Resting</button><button class="btn" id="prevOpen">Open</button><span class="muted small">Live preview: Point at the island, play, skip, scrub.</span></div>
+</div>
+<label>Motion</label>
+<div class="seg" id="motionSeg" role="group" aria-label="Motion"><button type="button" data-motion="fluid">Fluid</button><button type="button" data-motion="balanced">Balanced</button><button type="button" data-motion="battery">Battery saver</button></div>
+<p class="muted">Fluid runs at full refresh rate. Balanced is smooth. Battery saver stays still.</p>
+<label>Visualizer</label>
+<div class="seg" id="visualizerSeg" role="group" aria-label="Visualizer"><button type="button" data-visualizer="pixels">Pixels</button><button type="button" data-visualizer="bars">Bars</button></div>
+<p class="muted">Square pixels or smooth rounded bars beside the artwork while music plays.</p>
+<label>Corners <input type="range" id="cornersPct" min="0" max="100" value="58"> <span id="cornersVal">58%</span></label>
+<h2>Surface</h2>
+<p class="muted">Glass blurs what's behind the island. Pure black is true black, for OLED screens. Rosé, Lavender, Peach, Sakura and Candy glass are soft themes.</p>
+<div id="themeSwatches" title="Click a theme to apply it live"></div>
+<p class="muted">Glass and Candy glass don't show in screenshots or recordings — Windows keeps them out of captures. While OBS records, the island turns to plain glass.</p>
+<label>Glass blur <input type="range" id="blurPct" min="0" max="100" value="100"> <span id="blurVal">100%</span></label>
+<label>See-through surface <input type="range" id="surfacePct" min="0" max="100" value="100"> <span id="surfaceVal">100%</span></label>
+<div class="row"><label>Accent <input type="color" id="accent" value="#ffffff"></label></div>
+</section>
+
+<section data-section="island">
+<h2>Island</h2>
+<div class="row"><label>Shape <select id="shape"><option value="pill">Floating pill</option><option value="notch">Notch (hangs from top edge)</option></select></label>
+<label>Position <select id="position"><option value="top-center">Top centre</option><option value="top-left">Top left</option><option value="top-right">Top right</option></select></label>
+<label>Width <input type="number" id="width" min="180" max="800" value="206"> px</label>
+<label>Expanded width <input type="number" id="expandedWidth" min="300" max="900" value="600"> px</label></div>
+<label>When the island opens <select id="openTab"><option value="last">Last tab</option><option value="music">Music</option></select></label>
+<label><input type="checkbox" id="clickThrough" checked> Never take clicks when collapsed (click-through)</label>
+<label>Click-through <select id="clickThroughMode"><option value="off">Off — island always clickable</option><option value="hold-ctrl">Hold Ctrl to interact</option></select> <span class="muted">Hold Ctrl: every click passes through to the app underneath (e.g. Chrome) — hold Ctrl and move the mouse over the island to use it. No hover exceptions.</span></label>
+<label><input type="checkbox" id="hiddenUntilEdge"> Hidden until pointer rests on the top edge</label>
+<label>Open delay <input type="number" id="openDelayMs" min="0" max="2000" value="350"> ms</label>
+<label><input type="checkbox" id="slimStripMaximized"> Slim strip under maximized windows <span class="muted">— when a window is maximized, hide the island and show only the slim strip</span></label>
+<label>Per-app rules <span class="muted">(one per line: exe=mode, mode = show | hide | strip | step-aside)</span><br><textarea id="perAppRules" rows="3" cols="60" placeholder="valorant.exe=strip&#10;chrome.exe=show"></textarea></label>
+<h2>Island border wallpaper</h2>
+<div class="row"><button type="button" class="btn" id="wallpaperPick">Choose image…</button><button type="button" class="btn" id="wallpaperNone">None</button><span class="muted small" id="wallpaperCurrent"></span></div>
+<div id="wallpaperPresets" class="row" style="margin-top:8px"></div>
+<div id="wallpaperPreview" title="Border preview" style="height:34px;border-radius:999px;border:1px solid var(--border);margin-top:8px"></div>
+<p class="muted">The image shows only in the island's border ring — the inside stays transparent glass. The file is copied onto this PC, so it keeps working if the original is moved or deleted. Presets are built-in gradients.</p>
+<h2>Live wallpaper</h2>
+<label><input type="checkbox" id="lwEnabled"> Enable live wallpaper <span class="muted">— opt-in, off by default. A video plays as your desktop wallpaper.</span></label>
+<div class="row"><button type="button" class="btn" id="lwPick">Choose video…</button><span class="muted small" id="lwCurrent"></span></div>
+<div class="row"><label>Quality <select id="lwQuality"><option value="high">High</option><option value="balanced">Balanced</option><option value="low">Low</option></select></label>
+<label>Frame rate <select id="lwFps"><option value="60">60 fps</option><option value="30">30 fps</option><option value="15">15 fps</option></select></label></div>
+<label><input type="checkbox" id="lwPauseFs" checked> Pause when a fullscreen app is open</label>
+<label><input type="checkbox" id="lwPauseBatt" checked> Pause on battery power</label>
+<label><input type="checkbox" id="lwPauseSaver" checked> Pause when battery saver is on</label>
+<p class="muted">The video file stays where it is (videos are large — it is not copied). If you move or delete the file, the wallpaper turns itself off and tells you.</p>
+</section>
+
+<section data-section="taskbar">
+<h2>Taskbar</h2>
+<label><input type="checkbox" id="taskbarEnabled"> OpenIsland taskbar <span class="muted">— A notch along the bottom of your main screen in place of Windows' taskbar, in the island's look. Start, your pinned and open apps, the song playing and the timer, the tray, quick settings and the clock. Windows stop above it. Right-click an app to pin it. Windows' taskbar comes back as it was when you turn this off or OpenIsland closes.</span></label>
+<p id="taskbarStatus" class="muted">Checking taskbar status…</p>
+<div class="row" style="margin-top:8px"><button class="btn" id="taskbarAddApp">Add pinned app…</button></div>
+<div id="taskbarPinned"></div>
+<h2>System tray</h2>
+<label><input type="checkbox" id="showAllTrayIcons" checked> Show every tray icon <span class="muted">— All the tray icons sit on the taskbar, none behind the arrow.</span></label>
+<div class="row"><button class="btn" id="trayChooseBtn">Choose which icons show</button> <span class="muted">— opens Windows Settings</span></div>
+<p class="muted">Windows does not expose other apps' tray icons to a desktop app, so the taskbar shows live system-status icons (volume, Wi-Fi, battery) instead of the apps' own tray icons.</p>
+<h2>Windows' taskbar</h2>
+<p class="muted">Windows' taskbar hides only while the OpenIsland taskbar above is on — it never hides on its own. (v1.0.0 item D.)</p>
+</section>
+
+<section data-section="panels">
+<h2>Panels</h2>
+<p class="muted">Choose which tabs the island shows. At least one tab stays on.</p>
+<div id="tabsList"></div>
+</section>
+
+<section data-section="widgets">
+<h2>Widgets</h2>
+<p class="muted">Floating desktop widgets, like the video's intro — each one lives on the desktop until you switch it off here.</p>
+<div class="wrow"><div class="wname"><b>Day clock</b><span>Date, week strip and focus timer on the desktop</span></div><button type="button" class="switch" id="wgClock" role="switch" aria-checked="false" aria-label="Show day clock on desktop"></button></div>
+<div class="wrow"><div class="wname"><b>Weather</b><span>Temperature and conditions on the desktop</span></div><button type="button" class="switch" id="wgWeather" role="switch" aria-checked="false" aria-label="Show weather on desktop"></button></div>
+<div class="wrow"><div class="wname"><b>Stats</b><span>CPU, GPU, RAM and network on the desktop</span></div><button type="button" class="switch" id="wgStats" role="switch" aria-checked="false" aria-label="Show stats on desktop"></button></div>
+<div class="row" style="margin-top:12px"><label>Widget accent <input type="color" id="widgetsAccent" value="#ffffff"></label></div>
+<label><input type="checkbox" id="clock24h"> 24-hour clock</label>
+<label><input type="checkbox" id="weatherUseLocation"> Use my location for weather <span class="muted">(location permission is only used for weather, and only if you tick this)</span></label>
+<div class="row"><label>Weather latitude <input type="number" step="0.0001" id="weatherLat"></label><label>Longitude <input type="number" step="0.0001" id="weatherLon"></label></div>
+</section>
+
+<section data-section="calls">
+<h2>Calls</h2>
+<p class="muted">Mic = call timer / mute + voice in recordings if on. Webcam = mirror only when Preview is pressed. Notifications = read only after Windows permission.</p>
+</section>
+
+<section data-section="streaming">
+<h2>Streaming</h2>
+<label><input type="checkbox" id="streamEnabled"> Enable streaming drawer</label>
+<div class="row"><label>Twitch channel <input id="twitchChannel"></label><label>YouTube live URL <input id="youtubeUrl" size="30"></label></div>
+<label><input type="checkbox" id="obsEnabled"> OBS WebSocket (OBS Studio's own WebSocket server)</label>
+<div class="row"><label>OBS host <input id="obsHost" value="127.0.0.1"></label><label>Port <input id="obsPort" value="4455" size="6"></label><label>Password <input id="obsPassword" type="password"></label></div>
+<label>Render folder to watch <input id="renderFolder" size="50" placeholder="C:\Renders"></label>
+</section>
+
+<section data-section="gaming">
+<h2>Gaming</h2>
+<label><input type="checkbox" id="stripShow" checked> Show system strip (CPU / RAM / GPU / FPS) <span class="muted">— turn it off to remove the strip from the top of the screen entirely</span></label>
+<label>Strip position <select id="stripPos"><option value="top-left">Top left</option><option value="top-right">Top right</option></select></label>
+<label>Mode <select id="gameMode"><option value="strip">Slim strip</option><option value="hide">Hide in games</option><option value="nothing">Do nothing</option></select></label>
+<p class="muted">FPS comes from Windows' own frame events (nothing injected into the game, one-time permission in the Gaming tab). Borderless / windowed fullscreen only. <span id="fpsState"></span></p>
+</section>
+
+<section data-section="ai-agents">
+<h2>AI agents</h2>
+<p class="muted">An AI-agents section shows what your coding agents are doing — Claude Code, Codex, Antigravity, Hermes or your own agents — and nudges you when one needs you (for example, when it is waiting for a permission). OpenIsland does not build this in v3.0.0: watching another app's agent processes and nudging on their state is a separate piece of work, and PJ decides later whether he wants any of it. Nothing here sends data anywhere.</p>
+</section>
+
+<section data-section="tools">
+<h2>Tools</h2>
+<label><input type="checkbox" id="recordMic"> Include microphone voice in screen recordings</label>
+<p class="muted">Screenshot / region snip / screen recording (webm) live in the island's Tools area via desktopCapturer.</p>
+</section>
+
+<section data-section="keys">
+<h2>Keys</h2>
+<div class="row"><label>Toggle island <input id="keyToggle" size="20"></label><label>Mute mic <input id="keyMute" size="20"></label><label>Colour picker <input id="keyColor" size="20"></label><label>Game strip <input id="keyStrip" size="20"></label></div>
+<p class="muted">Every action has a changeable keyboard shortcut. Ctrl+Alt+C reads the colour under the pointer and copies its hex code.</p>
+<h2>Favourite apps</h2>
+<p class="muted">Six slots, each with a global hotkey. Pick an app, set its hotkey, launch it from the Controls tab or the hotkey.</p>
+<div id="favList"></div>
+</section>
+
+<section data-section="about">
+<h2>About</h2>
+<p class="muted">OpenIsland v1.0.0 — a free, original Dynamic Island for Windows 10 / 11. No account, no ads, no telemetry.</p>
+<div class="contact-row">
+  <a class="contact-link contact-icon" id="aboutEmail" href="#" data-url="mailto:pjdevelopers9536@gmail.com" title="Email — pjdevelopers9536@gmail.com"><span class="c-ic" data-icon="mail"></span></a>
+  <a class="contact-link contact-icon" id="aboutYoutube" href="#" data-url="https://www.youtube.com/@PJs-Dailydozen" title="YouTube — @PJs-Dailydozen"><span class="c-ic" data-icon="youtube"></span></a>
+  <a class="contact-link contact-icon" id="aboutInstagram" href="#" data-url="https://www.instagram.com/pj.s_dailydozen/" title="Instagram — @pj.s_dailydozen"><span class="c-ic" data-icon="instagram"></span></a>
+</div>
+</section>
+</div>
+<div id="toastS"></div>
+<script>
+const $ = s => document.querySelector(s);
+let S;
+const SECTIONS = ['general','accessibility','appearance','island','taskbar','panels','widgets','calls','streaming','gaming','ai-agents','tools','keys','about'];
+const SECTION_NAMES = { general:'General', accessibility:'Accessibility', appearance:'Appearance', island:'Island', taskbar:'Taskbar', panels:'Panels', widgets:'Widgets', calls:'Calls', streaming:'Streaming', gaming:'Gaming', 'ai-agents':'AI agents', tools:'Tools', keys:'Keys', about:'About' };
+const TABS = ['music','widgets','controls','clipboard','files','reminders','calls','gaming','deck','stream','web','notifications'];
+const TAB_NAMES = { music:'Music', widgets:'Widgets', controls:'Controls', clipboard:'Clipboard', files:'Files', reminders:'Reminders', calls:'Calls', gaming:'Gaming', deck:'Deck', stream:'Stream', web:'Web drawer', notifications:'Notifications' };
+const THEMES = [
+  ['black','Black'],
+  ['pure-black','Pure black'],
+  ['graphite','Graphite'],
+  ['liquid-glass','Glass'],
+  ['acrylic','Acrylic'],
+  ['rose','Rosé'],
+  ['lavender','Lavender'],
+  ['peach','Peach'],
+  ['sakura','Sakura'],
+  ['candy-glass','Candy glass'],
+];
+const fmt = (s) => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const toastS = (t) => { const el = $('#toastS'); el.textContent = t; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 2500); };
+// Live-apply: apply in memory + push to the island NOW (no disk write), then
+// a debounced (300ms) save for rapid inputs like sliders and colour drags.
+let saveTimer = null;
+function deepMergeLocal(dst, patch) {
+  for (const k of Object.keys(patch)) {
+    if (patch[k] && typeof patch[k] === 'object' && !Array.isArray(patch[k]) && dst[k] && typeof dst[k] === 'object') deepMergeLocal(dst[k], patch[k]);
+    else dst[k] = patch[k];
+  }
+  return dst;
+}
+function livePatch(patch) {
+  deepMergeLocal(S, patch);
+  window.openisland.applySettings(patch);
+  applySettingsToSettings();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => window.openisland.saveSettings(patch), 300);
+}
+function applySettingsToSettings() {
+  // The Settings window itself re-themes live (image-33 vs image-34).
+  document.documentElement.dataset.theme = S.appearance.theme;
+  document.documentElement.style.setProperty('--accent', S.appearance.accent);
+  document.documentElement.style.setProperty('--radius', S.appearance.cornerRadius + 'px');
+  document.documentElement.style.setProperty('--surface', String(S.appearance.surface ?? 100));
+  document.documentElement.style.setProperty('--blur', 'blur(' + ((S.appearance.blurPct == null ? 100 : S.appearance.blurPct) * 0.28) + 'px) saturate(1.6)');
+}
+function showSection(name) {
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.dataset.section === name));
+  document.querySelectorAll('.side-item').forEach(b => b.classList.toggle('sel', b.dataset.section === name));
+  $('#main').scrollTop = 0; // a fresh section always starts at its top
+}
+function buildSidebar() {
+  $('#sideItems').innerHTML = SECTIONS.map(s => `<button type="button" class="side-item" data-section="${s}">${SECTION_NAMES[s]}</button>`).join('');
+  document.querySelectorAll('.side-item').forEach(b => b.addEventListener('click', () => showSection(b.dataset.section)));
+}
+$('#search').addEventListener('input', (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('section').forEach(s => {
+    const hit = !q || s.textContent.toLowerCase().includes(q);
+    s.classList.toggle('on', hit);
+    s.style.display = q ? (hit ? '' : 'none') : '';
+  });
+  document.querySelectorAll('.side-item').forEach(b => {
+    const sec = document.querySelector(`section[data-section="${b.dataset.section}"]`);
+    b.style.display = !q || sec.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  if (q) { const first = document.querySelector('section.on'); }
+  else showSection('appearance');
+});
+function buildSwatches() {
+  // v1.0.0 (§6): Surface is NAMED buttons (Black, Pure black, Graphite,
+  // Glass, Acrylic, Rosé, Lavender, Peach, Sakura, Candy glass) — the
+  // selected one is white-filled. The old gradient swatches are gone.
+  $('#themeSwatches').innerHTML = THEMES.map(([v, name]) =>
+    `<button type="button" class="surf-btn${S.appearance.theme === v ? ' sel' : ''}" data-theme="${v}">${name}</button>`).join('');
+  document.querySelectorAll('#themeSwatches .surf-btn').forEach(b => b.addEventListener('click', () => {
+    livePatch({ appearance: { theme: b.dataset.theme } });
+    document.querySelectorAll('#themeSwatches .surf-btn').forEach(x => x.classList.toggle('sel', x === b));
+  }));
+}
+const WALLPAPER_PRESETS = [
+  ['aurora', 'Aurora', 'linear-gradient(135deg,#7c5cff,#00c6ff 45%,#ff5fa2)'],
+  ['sunset', 'Sunset', 'linear-gradient(135deg,#ff9a3d,#ff5e7a 55%,#b06bff)'],
+  ['ocean', 'Ocean', 'linear-gradient(135deg,#00b4d8,#0077ff 50%,#00e5a0)'],
+  ['forest', 'Forest', 'linear-gradient(135deg,#2ecc71,#0a7a5c 55%,#a8e063)'],
+  ['mono', 'Mono', 'linear-gradient(135deg,#ffffff,#8e8e93 60%,#3a3a3f)'],
+];
+async function refreshWallpaperUI() {
+  const v = S.appearance.borderWallpaper || '';
+  $('#wallpaperCurrent').textContent = !v ? 'None' : v.startsWith('preset:') ? 'Preset: ' + (WALLPAPER_PRESETS.find(p => p[0] === v.slice(7)) || [])[1] : 'File: ' + v.slice(5);
+  const bw = await window.openisland.getBorderWallpaper();
+  $('#wallpaperPreview').style.background = bw.css && bw.css !== 'none' ? bw.css : 'var(--bg2)';
+  $('#wallpaperPreview').style.backgroundSize = 'cover';
+  document.querySelectorAll('#wallpaperPresets .swatch').forEach(x => x.classList.toggle('sel', x.dataset.preset === v.slice(7)));
+}
+function buildWallpaperPresets() {
+  $('#wallpaperPresets').innerHTML = WALLPAPER_PRESETS.map(([id, name, grad]) =>
+    `<button type="button" class="swatch" data-preset="${id}"><div class="prev" style="background:${grad}"></div><div class="nm">${name}</div></button>`).join('');
+  document.querySelectorAll('#wallpaperPresets .swatch').forEach(b => b.addEventListener('click', async () => {
+    await window.openisland.setBorderWallpaper('preset:' + b.dataset.preset);
+    S.appearance.borderWallpaper = 'preset:' + b.dataset.preset;
+    refreshWallpaperUI();
+  }));
+}
+function buildTabsList() {
+  $('#tabsList').innerHTML = TABS.map(t => `<label><input type="checkbox" data-tab="${t}" ${S.panels[t] !== false ? 'checked' : ''}> ${TAB_NAMES[t]}</label>`).join('');
+  document.querySelectorAll('[data-tab]').forEach(c => c.addEventListener('change', () => {
+    const on = document.querySelectorAll('[data-tab]:checked').length;
+    if (on === 0) { c.checked = true; toastS('At least one tab must stay on.'); return; }
+    const panels = {}; document.querySelectorAll('[data-tab]').forEach(x => panels[x.dataset.tab] = x.checked);
+    livePatch({ panels });
+  }));
+}
+function buildFavList() {
+  $('#favList').innerHTML = (S.favourites || []).map((f, i) => `
+    <div class="favrow-set"><span class="muted" style="width:44px">Slot ${i + 1}</span>
+      <input type="text" value="${f && f.name ? f.name : ''}" placeholder="No app picked" readonly>
+      <input type="text" data-favkey="${i}" value="${f && f.hotkey ? f.hotkey : ''}" placeholder="Hotkey (e.g. Ctrl+Alt+1)" size="18">
+      <button type="button" class="btn" data-pickfav="${i}">Pick app…</button>
+      <button type="button" class="btn" data-clearfav="${i}">Clear</button></div>`).join('');
+  document.querySelectorAll('[data-pickfav]').forEach(b => b.addEventListener('click', async () => {
+    const r = await window.openisland.pickFavourite();
+    if (!r.ok) return;
+    const favs = S.favourites.slice(); favs[+b.dataset.pickfav] = { name: r.name, path: r.path, hotkey: favs[+b.dataset.pickfav]?.hotkey || '' };
+    livePatch({ favourites: favs });
+    buildFavList();
+  }));
+  document.querySelectorAll('[data-clearfav]').forEach(b => b.addEventListener('click', () => {
+    const favs = S.favourites.slice(); favs[+b.dataset.clearfav] = null;
+    livePatch({ favourites: favs });
+    buildFavList();
+  }));
+  document.querySelectorAll('[data-favkey]').forEach(inp => inp.addEventListener('change', () => {
+    const favs = S.favourites.slice(); const i = +inp.dataset.favkey;
+    if (favs[i]) { favs[i] = { ...favs[i], hotkey: inp.value.trim() }; livePatch({ favourites: favs }); }
+  }));
+}
+function buildTaskbarPinned() {
+  $('#taskbarPinned').innerHTML = (S.taskbar.pinned || []).map((p, i) => `<div class="favrow-set"><span>${window.OIIcons.icon('pin', 'sm')} ${p.name}</span><span class="muted small" style="flex:1">${p.path}</span><button type="button" class="btn" data-unpin="${i}">Remove</button></div>`).join('') || '<p class="muted">No pinned apps yet.</p>';
+  document.querySelectorAll('[data-unpin]').forEach(b => b.addEventListener('click', () => {
+    const pinned = S.taskbar.pinned.slice(); pinned.splice(+b.dataset.unpin, 1);
+    livePatch({ taskbar: { pinned } });
+    buildTaskbarPinned();
+  }));
+}
+let prevSession = null, prevPoll = null;
+// Item 18 — demo music card: with no real session, the preview shows the
+// reference demo track ("Neon Harbor / Kavi Rao", 1:06 / -2:27, wavy red
+// progress) instead of "Nothing playing / 0:00". A real session replaces
+// the demo; the demo play button only toggles the demo's own play state.
+const DEMO_TRACK = { title: 'Neon Harbor', artist: 'Kavi Rao', position: 66, duration: 213 };
+let demoPlaying = true, demoPos = DEMO_TRACK.position;
+function setPrevPlayIcon(playing) {
+  $('#prevPlay').innerHTML = window.OIIcons.icon(playing ? 'pause' : 'play');
+}
+function setPrevWave(pct) { // wavy red progress: filled portion follows playback, like the island's Music card
+  const r = document.getElementById('prevWClipRect');
+  if (r) r.setAttribute('width', (Math.max(0, Math.min(100, pct)) / 100 * 400).toFixed(1));
+}
+function showDemoPreview() {
+  prevSession = null;
+  $('#prevTitle').textContent = DEMO_TRACK.title;
+  $('#prevArtist').textContent = DEMO_TRACK.artist;
+  const art = document.getElementById('prevArt');
+  if (art.tagName !== 'DIV') art.outerHTML = '<div id="prevArt" class="p-art-none"></div>';
+  document.getElementById('prevArt').innerHTML = window.OIIcons.icon('music', 'lg');
+  setPrevWave(demoPos / DEMO_TRACK.duration * 100);
+  $('#prevElapsed').textContent = fmt(demoPos);
+  $('#prevRemaining').textContent = '-' + fmt(Math.max(0, DEMO_TRACK.duration - demoPos));
+  setPrevPlayIcon(demoPlaying);
+}
+async function refreshPreview() {
+  const m = await window.openisland.getMedia();
+  const s = (m.sessions || [])[m.activeIndex || 0] || (m.sessions || [])[0] || null;
+  prevSession = s;
+  if (!s) { showDemoPreview(); return; }
+  $('#prevTitle').textContent = s.title;
+  $('#prevArtist').textContent = [s.artist, s.album].filter(Boolean).join(' — ') + (s.app ? ' · via ' + s.app : '');
+  const art = document.getElementById('prevArt');
+  if (s.artwork) {
+    if (art.tagName !== 'IMG') art.outerHTML = `<img id="prevArt" class="p-art" src="${s.artwork}" alt="">`;
+    else if (art.src !== s.artwork) art.src = s.artwork;
+  } else {
+    if (art.tagName !== 'DIV') art.outerHTML = '<div id="prevArt" class="p-art-none"></div>';
+    document.getElementById('prevArt').innerHTML = window.OIIcons.icon('music', 'lg');
+  }
+  const pct = s.duration ? Math.min(100, (s.position / s.duration) * 100) : 0;
+  setPrevWave(pct);
+  $('#prevElapsed').textContent = fmt(s.position);
+  $('#prevRemaining').textContent = '-' + fmt(s.duration ? Math.max(0, s.duration - s.position) : 0);
+  setPrevPlayIcon(s.status === 'playing');
+}
+// v5.0.1 (item 4): self-check — if the theme stylesheets failed to load
+// (the v5.0.0 Settings window rendered as a wall of unstyled text on PJ's
+// laptop), the page is unreadable. Detect it via the theme variable (--bg,
+// defined in styles.css) and the two external sheets, log it to
+// openisland.log, and show a readable fallback banner (inline styles, so it
+// renders even with no CSS at all) instead of silent garbage.
+function checkSettingsCss() {
+  if (document.getElementById('cssFailBanner')) return; // already shown
+  const bg = getComputedStyle(document.body).getPropertyValue('--bg').trim();
+  const hrefs = [...document.styleSheets].map(s => { try { return s.href || ''; } catch { return ''; } });
+  const hasShared = hrefs.some(h => h.endsWith('shared.css'));
+  const hasStyles = hrefs.some(h => h.endsWith('styles.css'));
+  if (bg !== '' && hasShared && hasStyles) return; // CSS is fine
+  const missing = [!hasShared ? 'shared.css' : null, !hasStyles ? 'styles.css' : null, bg === '' ? 'theme variables (--bg)' : null].filter(Boolean).join(', ');
+  if (typeof window.openisland.logDiag === 'function') window.openisland.logDiag('CSS failed to load in Settings window — missing: ' + missing);
+  const banner = document.createElement('div');
+  banner.id = 'cssFailBanner';
+  banner.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#b91c1c;color:#fff;font:600 14px/1.5 "Segoe UI",system-ui,sans-serif;padding:12px 16px;');
+  banner.textContent = 'OpenIsland Settings could not load its styles (' + missing + '). The settings below may look plain, but they still work. Please tell us — this should not happen.';
+  document.body.prepend(banner);
+}
+async function init(){
+  // Run the CSS self-check once stylesheets have had a chance to load
+  // (window load) and once more on a timer in case load already fired.
+  window.addEventListener('load', checkSettingsCss);
+  setTimeout(checkSettingsCss, 2000);
+  S = await window.openisland.getSettings();
+  buildSidebar();
+  showSection('appearance');
+  // Strip "Strip settings" (and any other deep link) lands on the right section.
+  if (typeof window.openisland.on === 'function') window.openisland.on('open-settings-section', (name) => { if (name) showSection(name); });
+  applySettingsToSettings();
+  buildSwatches();
+  buildWallpaperPresets();
+  refreshWallpaperUI();
+  buildTabsList();
+  buildFavList();
+  buildTaskbarPinned();
+  initMotionVisualizer();
+  initWidgetToggles();
+  initAboutLinks();
+  refreshPreview();
+  prevPoll = setInterval(refreshPreview, 2000);
+  $('#prevPrev').innerHTML = window.OIIcons.icon('skip-back');
+  $('#prevNext').innerHTML = window.OIIcons.icon('skip-forward');
+  setPrevPlayIcon(demoPlaying);
+  $('#prevPlay').addEventListener('click', async () => {
+    if (!prevSession) { demoPlaying = !demoPlaying; setPrevPlayIcon(demoPlaying); return; }
+    await window.openisland.mediaCommand('toggle', prevSession.id); refreshPreview();
+  });
+  $('#prevPrev').addEventListener('click', async () => {
+    if (!prevSession) { demoPos = Math.max(0, demoPos - 10); showDemoPreview(); return; }
+    await window.openisland.mediaCommand('previous', prevSession.id); refreshPreview();
+  });
+  $('#prevNext').addEventListener('click', async () => {
+    if (!prevSession) { demoPos = Math.min(DEMO_TRACK.duration, demoPos + 10); showDemoPreview(); return; }
+    await window.openisland.mediaCommand('next', prevSession.id); refreshPreview();
+  });
+  const scrubDemo = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    demoPos = Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * DEMO_TRACK.duration);
+    showDemoPreview();
+  };
+  $('#prevWave').addEventListener('click', async (e) => {
+    if (!prevSession) { scrubDemo(e); return; }
+    // Real session: seek like the island's wavy line (v3 mediaCommand 'seek').
+    const r = e.currentTarget.getBoundingClientRect();
+    const secs = Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (prevSession.duration || 0));
+    await window.openisland.mediaCommand('seek', prevSession.id, secs); refreshPreview();
+  });
+  $('#prevResting').addEventListener('click', () => { $('#prevResting').classList.add('sel'); $('#prevOpen').classList.remove('sel'); window.openisland.collapse(); });
+  $('#prevOpen').addEventListener('click', () => { $('#prevOpen').classList.add('sel'); $('#prevResting').classList.remove('sel'); window.openisland.expand(); });
+  $('#prevOpen').classList.add('sel'); // the preview shows the Open card, like the reference (Open white-filled)
+  // General
+  $('#runAtStartup').checked = S.general.runAtStartup;
+  $('#language').value = S.general.language;
+  $('#runAtStartup').addEventListener('change', (e) => livePatch({ general: { runAtStartup: e.target.checked } }));
+  $('#language').addEventListener('change', (e) => livePatch({ general: { language: e.target.value } }));
+  // Accessibility
+  $('#reduceMotion').checked = !!S.accessibility?.reduceMotion;
+  $('#largerText').checked = !!S.accessibility?.largerText;
+  $('#reduceMotion').addEventListener('change', (e) => livePatch({ accessibility: { reduceMotion: e.target.checked } }));
+  $('#largerText').addEventListener('change', (e) => livePatch({ accessibility: { largerText: e.target.checked } }));
+  // Appearance
+  $('#accent').value = S.appearance.accent;
+  $('#cornersPct').value = Math.round((S.appearance.cornerRadius / 48) * 100);
+  $('#cornersVal').textContent = Math.round((S.appearance.cornerRadius / 48) * 100) + '%';
+  $('#blurPct').value = S.appearance.blurPct ?? 100;
+  $('#blurVal').textContent = (S.appearance.blurPct ?? 100) + '%';
+  $('#surfacePct').value = S.appearance.surface ?? 100;
+  $('#surfaceVal').textContent = (S.appearance.surface ?? 100) + '%';
+  $('#accent').addEventListener('input', (e) => livePatch({ appearance: { accent: e.target.value } }));
+  $('#cornersPct').addEventListener('input', (e) => {
+    const pct = +e.target.value;
+    $('#cornersVal').textContent = pct + '%';
+    livePatch({ appearance: { cornerRadius: Math.round(pct / 100 * 48) } });
+  });
+  $('#blurPct').addEventListener('input', (e) => { $('#blurVal').textContent = e.target.value + '%'; livePatch({ appearance: { blurPct: +e.target.value } }); });
+  $('#surfacePct').addEventListener('input', (e) => { $('#surfaceVal').textContent = e.target.value + '%'; livePatch({ appearance: { surface: +e.target.value } }); });
+  $('#wallpaperPick').addEventListener('click', async () => { const r = await window.openisland.pickWallpaper(); if (r.ok) { S.appearance.borderWallpaper = r.value; refreshWallpaperUI(); } });
+  $('#wallpaperNone').addEventListener('click', async () => { await window.openisland.setBorderWallpaper(''); S.appearance.borderWallpaper = ''; refreshWallpaperUI(); });
+  // Island
+  $('#shape').value = S.island.shape; $('#position').value = S.island.position;
+  $('#width').value = S.island.width; $('#expandedWidth').value = S.island.expandedWidth;
+  $('#openTab').value = S.island.openTab || 'last';
+  $('#clickThrough').checked = S.island.clickThroughWhenCollapsed;
+  $('#clickThroughMode').value = S.island.clickThroughMode || 'off';
+  $('#hiddenUntilEdge').checked = S.island.hiddenUntilEdge;
+  $('#openDelayMs').value = S.island.openDelayMs;
+  $('#slimStripMaximized').checked = !!S.gaming.slimStripMaximized;
+  $('#perAppRules').value = (S.island.perAppRules || []).map(r => r.exe + '=' + r.mode).join('\n');
+  $('#shape').addEventListener('change', (e) => livePatch({ island: { shape: e.target.value } }));
+  $('#position').addEventListener('change', (e) => livePatch({ island: { position: e.target.value } }));
+  $('#width').addEventListener('change', (e) => livePatch({ island: { width: +e.target.value } }));
+  $('#expandedWidth').addEventListener('change', (e) => livePatch({ island: { expandedWidth: +e.target.value } }));
+  $('#openTab').addEventListener('change', (e) => livePatch({ island: { openTab: e.target.value } }));
+  $('#clickThrough').addEventListener('change', (e) => livePatch({ island: { clickThroughWhenCollapsed: e.target.checked } }));
+  $('#clickThroughMode').addEventListener('change', (e) => livePatch({ island: { clickThroughMode: e.target.value } }));
+  $('#hiddenUntilEdge').addEventListener('change', (e) => livePatch({ island: { hiddenUntilEdge: e.target.checked } }));
+  $('#openDelayMs').addEventListener('change', (e) => livePatch({ island: { openDelayMs: +e.target.value } }));
+  $('#slimStripMaximized').addEventListener('change', (e) => livePatch({ gaming: { slimStripMaximized: e.target.checked } }));
+  $('#perAppRules').addEventListener('input', (e) => {
+    const perAppRules = e.target.value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [exe, mode] = l.split('='); return { exe: (exe || '').trim(), mode: (mode || 'show').trim() }; }).filter(r => r.exe);
+    livePatch({ island: { perAppRules } });
+  });
+  // Taskbar
+  $('#taskbarEnabled').checked = S.taskbar.enabled;
+  // v1.0.0 (item D): the "hide on its own" and "auto-hide on a side"
+  // checkboxes are gone — the Windows taskbar hides only while the
+  // island taskbar above is on.
+  $('#showAllTrayIcons').checked = S.taskbar.showAllTrayIcons !== false;
+  // v5.0.0 (item D3): live status line — the VERIFIED hide/show result plus
+  // whether the island dock is actually on screen, refreshed on open, after
+  // every taskbar toggle, and every 5 s while Settings is open.
+  async function refreshTaskbarStatus() {
+    const el = $('#taskbarStatus');
+    if (!el) return;
+    try {
+      const st = await window.openisland.taskbarStatus();
+      const win = st.verified ? (st.windowsHidden ? 'hidden (verified)' : 'shown (verified)') : 'not checked yet';
+      el.textContent = `Windows taskbar: ${win} · Island taskbar: ${st.dockOn ? 'on' : 'off'}`;
+    } catch { el.textContent = 'Windows taskbar: status unavailable · Island taskbar: unknown'; }
+  }
+  refreshTaskbarStatus();
+  setInterval(refreshTaskbarStatus, 5000);
+  $('#taskbarEnabled').addEventListener('change', (e) => { livePatch({ taskbar: { enabled: e.target.checked } }); setTimeout(refreshTaskbarStatus, 1200); });
+  $('#showAllTrayIcons').addEventListener('change', (e) => livePatch({ taskbar: { showAllTrayIcons: e.target.checked } }));
+  $('#trayChooseBtn').addEventListener('click', () => window.openisland.dockAction('open-tray-settings'));
+  $('#taskbarAddApp').addEventListener('click', async () => {
+    const r = await window.openisland.pickTaskbarApp();
+    if (!r.ok) return;
+    const pinned = (S.taskbar.pinned || []).slice(); pinned.push({ name: r.name, path: r.path });
+    livePatch({ taskbar: { pinned } });
+    buildTaskbarPinned();
+  });
+  // Widgets
+  $('#clock24h').checked = S.widgets.clock24h; $('#weatherUseLocation').checked = S.widgets.weatherUseLocation;
+  $('#weatherLat').value = S.widgets.weatherLat; $('#weatherLon').value = S.widgets.weatherLon;
+  $('#clock24h').addEventListener('change', (e) => livePatch({ widgets: { clock24h: e.target.checked } }));
+  $('#weatherUseLocation').addEventListener('change', (e) => livePatch({ widgets: { weatherUseLocation: e.target.checked } }));
+  $('#weatherLat').addEventListener('input', (e) => livePatch({ widgets: { weatherLat: parseFloat(e.target.value) || 17.385 } }));
+  $('#weatherLon').addEventListener('input', (e) => livePatch({ widgets: { weatherLon: parseFloat(e.target.value) || 78.4867 } }));
+  // Streaming
+  $('#streamEnabled').checked = S.streaming.enabled; $('#twitchChannel').value = S.streaming.twitchChannel || '';
+  $('#youtubeUrl').value = S.streaming.youtubeUrl || ''; $('#obsEnabled').checked = S.streaming.obsEnabled;
+  $('#obsHost').value = S.streaming.obsHost; $('#obsPort').value = S.streaming.obsPort; $('#obsPassword').value = S.streaming.obsPassword || '';
+  $('#renderFolder').value = S.streaming.renderFolder || '';
+  $('#streamEnabled').addEventListener('change', (e) => livePatch({ streaming: { enabled: e.target.checked } }));
+  $('#twitchChannel').addEventListener('input', (e) => livePatch({ streaming: { twitchChannel: e.target.value } }));
+  $('#youtubeUrl').addEventListener('input', (e) => livePatch({ streaming: { youtubeUrl: e.target.value } }));
+  $('#obsEnabled').addEventListener('change', (e) => livePatch({ streaming: { obsEnabled: e.target.checked } }));
+  $('#obsHost').addEventListener('input', (e) => livePatch({ streaming: { obsHost: e.target.value } }));
+  $('#obsPort').addEventListener('change', (e) => livePatch({ streaming: { obsPort: +e.target.value || 4455 } }));
+  $('#obsPassword').addEventListener('input', (e) => livePatch({ streaming: { obsPassword: e.target.value } }));
+  $('#renderFolder').addEventListener('input', (e) => livePatch({ streaming: { renderFolder: e.target.value } }));
+  // Gaming
+  $('#gameMode').value = S.gaming.mode; $('#stripShow').checked = S.gaming.showStrip !== false; $('#stripPos').value = S.gaming.stripPosition || 'top-left';
+  $('#fpsState').textContent = 'FPS consent: ' + (S.gaming.fpsConsent || 'unset') + '.';
+  $('#stripShow').addEventListener('change', (e) => livePatch({ gaming: { showStrip: e.target.checked } }));
+  $('#stripPos').addEventListener('change', (e) => livePatch({ gaming: { stripPosition: e.target.value } }));
+  $('#gameMode').addEventListener('change', (e) => livePatch({ gaming: { mode: e.target.value } }));
+  // Tools
+  $('#recordMic').checked = S.tools.recordMic;
+  $('#recordMic').addEventListener('change', (e) => livePatch({ tools: { recordMic: e.target.checked } }));
+  // Keys
+  $('#keyToggle').value = S.keys.toggleIsland; $('#keyMute').value = S.keys.muteMic; $('#keyColor').value = S.keys.colorPicker; $('#keyStrip').value = S.keys.toggleGameStrip;
+  $('#keyToggle').addEventListener('change', (e) => livePatch({ keys: { toggleIsland: e.target.value } }));
+  $('#keyMute').addEventListener('change', (e) => livePatch({ keys: { muteMic: e.target.value } }));
+  $('#keyColor').addEventListener('change', (e) => livePatch({ keys: { colorPicker: e.target.value } }));
+  $('#keyStrip').addEventListener('change', (e) => livePatch({ keys: { toggleGameStrip: e.target.value } }));
+  // Live wallpaper (opt-in, off by default) — wired in the Island section.
+  initLiveWallpaper();
+}
+// Item 15 — Motion / Visualizer segmented controls, live-applied like the
+// rest of Appearance. Defaults are motion 'balanced', visualizer 'pixels'
+// (the keys are added by the main process; read them defensively here).
+function initMotionVisualizer() {
+  const motion = S.appearance.motion || 'balanced';
+  const viz = S.appearance.visualizer || 'pixels';
+  document.querySelectorAll('#motionSeg button').forEach(b => {
+    b.classList.toggle('sel', b.dataset.motion === motion);
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#motionSeg button').forEach(x => x.classList.toggle('sel', x === b));
+      livePatch({ appearance: { motion: b.dataset.motion } });
+    });
+  });
+  document.querySelectorAll('#visualizerSeg button').forEach(b => {
+    b.classList.toggle('sel', b.dataset.visualizer === viz);
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#visualizerSeg button').forEach(x => x.classList.toggle('sel', x === b));
+      livePatch({ appearance: { visualizer: b.dataset.visualizer } });
+    });
+  });
+}
+function setSwitch(el, on) { el.classList.toggle('on', !!on); el.setAttribute('aria-checked', on ? 'true' : 'false'); }
+// Item 24 — "Show on desktop" per widget + widget accent colour. Toggling
+// ON opens the widget immediately; toggling OFF closes it immediately via
+// closeWidget (added by the main process — guarded until it lands, so the
+// toggle still saves even if the close call is not wired yet). Kind strings
+// are the ones createDesktopWidget already uses: 'clock' | 'weather' | 'stats'.
+function initWidgetToggles() {
+  const map = [['wgClock', 'desktopClock', 'clock'], ['wgWeather', 'desktopWeather', 'weather'], ['wgStats', 'desktopStats', 'stats']];
+  for (const [id, key, kind] of map) {
+    const el = document.getElementById(id);
+    setSwitch(el, !!S.widgets[key]);
+    el.addEventListener('click', () => {
+      const on = !el.classList.contains('on');
+      setSwitch(el, on);
+      livePatch({ widgets: { [key]: on } });
+      if (on) window.openisland.openWidget(kind);
+      else if (typeof window.openisland.closeWidget === 'function') window.openisland.closeWidget(kind);
+    });
+  }
+  const acc = document.getElementById('widgetsAccent');
+  acc.value = S.widgets.accent || '#ffffff';
+  acc.addEventListener('input', (e) => livePatch({ widgets: { accent: e.target.value } }));
+}
+// Item 12 — About links open in the default browser (web-open handler;
+// shell.openExternal handles mailto: too). Icons are OIIcons SVGs.
+// Item J (v3.0.1): the buttons are icon-only now — no visible link text;
+// the URLs live in data-url and the tooltip only.
+function initAboutLinks() {
+  document.querySelectorAll('.contact-link .c-ic').forEach(el => { el.innerHTML = window.OIIcons.icon(el.dataset.icon); });
+  document.querySelectorAll('.contact-link').forEach(a => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.openisland.webOpen(a.dataset.url);
+  }));
+}
+function initLiveWallpaper() {
+  // v1.0.0 (§6): the controls live in the Island section's static HTML now
+  // (the Wallpaper sidebar item is gone). Wiring only; no DOM is built here.
+  $('#lwEnabled').checked = !!S.liveWallpaper.enabled;
+  $('#lwCurrent').textContent = S.liveWallpaper.file || 'No video chosen.';
+  $('#lwQuality').value = S.liveWallpaper.quality || 'balanced';
+  $('#lwFps').value = String(S.liveWallpaper.fps || 30);
+  $('#lwPauseFs').checked = S.liveWallpaper.pauseOnFullscreen !== false;
+  $('#lwPauseBatt').checked = S.liveWallpaper.pauseOnBattery !== false;
+  $('#lwPauseSaver').checked = S.liveWallpaper.pauseOnSaver !== false;
+  $('#lwEnabled').addEventListener('change', (e) => livePatch({ liveWallpaper: { enabled: e.target.checked } }));
+  $('#lwPick').addEventListener('click', async () => { const r = await window.openisland.pickLiveWallpaper(); if (r.ok) { $('#lwCurrent').textContent = r.file; } });
+  $('#lwQuality').addEventListener('change', (e) => livePatch({ liveWallpaper: { quality: e.target.value } }));
+  $('#lwFps').addEventListener('change', (e) => livePatch({ liveWallpaper: { fps: +e.target.value } }));
+  $('#lwPauseFs').addEventListener('change', (e) => livePatch({ liveWallpaper: { pauseOnFullscreen: e.target.checked } }));
+  $('#lwPauseBatt').addEventListener('change', (e) => livePatch({ liveWallpaper: { pauseOnBattery: e.target.checked } }));
+  $('#lwPauseSaver').addEventListener('change', (e) => livePatch({ liveWallpaper: { pauseOnSaver: e.target.checked } }));
+}
+init();
+</script></body></html>
